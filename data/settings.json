@@ -1,0 +1,10 @@
+{
+  "mode": "public",
+  "autoViewStatus": false,
+  "autoLikeStatus": false,
+  "alwaysOnline": false,
+  "antiCall": false,
+  "antiDeleteStatus": false,
+  "autoReadMessages": true,
+  "menuVideoPath": null
+}

@@ -1,0 +1,36 @@
+{
+  "name": "IgniteBot",
+  "description": "Full-featured WhatsApp Bot with 30+ features: AI chat, sticker maker, media downloader, group management, e-commerce, booking system, analytics dashboard and more.",
+  "keywords": ["whatsapp", "bot", "nodejs", "ai", "openai", "baileys"],
+  "repository": "https://github.com/yourusername/ignitebot",
+  "logo": "",
+  "success_url": "/",
+  "stack": "heroku-22",
+  "env": {
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for AI Chat, Image Generation, and Text-to-Speech. Get yours at https://platform.openai.com/api-keys",
+      "required": false,
+      "value": ""
+    },
+    "ADMIN_NUMBERS": {
+      "description": "Comma-separated admin phone numbers in international format WITHOUT the + sign. Example: 12345678901,447911123456",
+      "required": false,
+      "value": ""
+    },
+    "NODE_ENV": {
+      "description": "Runtime environment",
+      "value": "production"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "standard-1x"
+    }
+  }
+}
