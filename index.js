@@ -852,7 +852,17 @@ document.getElementById('phone').addEventListener('keydown', e => { if (e.key ==
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
   const { version } = await fetchLatestBaileysVersion();
-  const logger = pino({ level: "silent" });
+  const pinoBase = pino({ level: "silent" });
+  const logger = Object.create(pinoBase);
+  const _noisy = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job/i;
+  for (const lvl of ["trace","debug","info","warn","error","fatal"]) {
+    logger[lvl] = (...a) => {
+      const msg = typeof a[0] === "string" ? a[0] : JSON.stringify(a[0]);
+      if (_noisy.test(msg)) return;
+      pinoBase[lvl]?.(...a);
+    };
+  }
+  logger.child = () => logger;
 
   const sock = makeWASocket({
     version,
@@ -862,9 +872,11 @@ async function startBot() {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
-    generateHighQualityLinkPreview: true,
+    generateHighQualityLinkPreview: false,
     shouldIgnoreJid: (jid) => isJidBroadcast(jid),
     markOnlineOnConnect: true,
+    retryRequestDelayMs: 2000,
+    getMessage: async () => undefined,
   });
 
   sockRef = sock;

@@ -25,7 +25,7 @@ function saveJSON(name, data) {
 
 module.exports = {
   botName: "IgniteBot",
-  prefix: "!",
+  prefix: ".",
   admins: (process.env.ADMIN_NUMBERS || "")
     .split(",")
     .map((n) => n.trim())
