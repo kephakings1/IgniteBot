@@ -232,6 +232,15 @@ async function startBot() {
       const prefix = require("./lib/settings").get("prefix") || ".";
       console.log(`⚡ Bot ready — prefix: ${prefix} | Type ${prefix}menu`);
 
+      // ── Auto-recording: force ON at startup so the bot always shows as recording ──
+      settings.set("autoRecording", true);
+      // Send "recording" presence so bot appears active straight away
+      setTimeout(async () => {
+        try {
+          await sock.sendPresenceUpdate("available");
+        } catch {}
+      }, 2000);
+
       // ── Startup alive message → all super-admins ──────────────────────────
       const { admins: adminNums } = require("./config");
       if (adminNums && adminNums.length) {
