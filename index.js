@@ -30,7 +30,7 @@ let alwaysOnlineInterval = null;
 let currentSessionId = null;
 
 const SESSION_PREFIX = "NEXUS-MD:~";
-const NEXUS_RE = /^NEXUS-MD[^A-Za-z0-9+/]*/;
+const NEXUS_RE = /^NEXUS-MD[^A-Za-z0-9+/=]*/;
 
 function encodeSession() {
   try {
@@ -43,21 +43,56 @@ function encodeSession() {
   }
 }
 
-function restoreSession(sessionId) {
+// Convert any Pastebin share URL to its raw counterpart
+function normalizePastebinUrl(url) {
+  return url.replace(/^https?:\/\/pastebin\.com\/(?!raw\/)([A-Za-z0-9]+)$/, "https://pastebin.com/raw/$1");
+}
+
+// Fetch text from a URL using axios
+async function fetchUrl(url) {
+  const axios = require("axios");
+  const res = await axios.get(url, { responseType: "text", timeout: 10000, maxRedirects: 5 });
+  return String(res.data).trim();
+}
+
+// Write creds.json from a raw JSON string or base64-encoded JSON string
+function writeCreds(raw) {
+  let json;
+  try { json = JSON.parse(raw); } catch {
+    // Not plain JSON — try base64 decode
+    const decoded = Buffer.from(raw.replace(NEXUS_RE, ""), "base64").toString("utf8");
+    json = JSON.parse(decoded);
+  }
+  fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+  fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), JSON.stringify(json));
+}
+
+async function restoreSession(sessionId) {
   try {
     fs.mkdirSync(AUTH_FOLDER, { recursive: true });
 
-    // Any NEXUS-MD prefix (NEXUS-MD:~, NEXUS-MD::, NEXUS-MD: etc.)
     if (sessionId.startsWith("NEXUS-MD")) {
-      const b64 = sessionId.replace(NEXUS_RE, "");
-      const creds = Buffer.from(b64, "base64").toString("utf8");
-      JSON.parse(creds); // validate JSON before writing
-      fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), creds);
+      const afterPrefix = sessionId.replace(NEXUS_RE, "").trim();
+
+      // ── URL-based short session: NEXUS-MD:~https://pastebin.com/XxXxXx ──
+      if (/^https?:\/\//i.test(afterPrefix)) {
+        const rawUrl = normalizePastebinUrl(afterPrefix);
+        console.log(`🌐 Fetching session from URL: ${rawUrl}`);
+        const fetched = await fetchUrl(rawUrl);
+        // The fetched content may itself be a NEXUS-MD session string or raw base64/JSON
+        const payload = fetched.startsWith("NEXUS-MD") ? fetched.replace(NEXUS_RE, "").trim() : fetched;
+        writeCreds(payload);
+        console.log("✅ Session restored from remote URL (NEXUS-MD short session)");
+        return true;
+      }
+
+      // ── Standard NEXUS-MD base64 session ──
+      writeCreds(afterPrefix);
       console.log("✅ Session restored from NEXUS-MD session ID");
       return true;
     }
 
-    // Legacy multi-file format — base64 of { filename: base64content }
+    // ── Legacy multi-file format — base64 of { filename: base64content } ──
     const files = JSON.parse(Buffer.from(sessionId, "base64").toString("utf8"));
     for (const [name, content] of Object.entries(files)) {
       const filePath = path.join(AUTH_FOLDER, name);
@@ -72,28 +107,18 @@ function restoreSession(sessionId) {
   }
 }
 
-// Always restore NEXUS-MD sessions (overwrite existing auth to stay fresh)
-// For other formats, only restore if auth folder is missing
-if (process.env.SESSION_ID) {
-  const isNexus = process.env.SESSION_ID.startsWith("NEXUS-MD");
-  if (isNexus || !fs.existsSync(AUTH_FOLDER)) {
-    console.log("📦 Restoring WhatsApp session from SESSION_ID...");
-    restoreSession(process.env.SESSION_ID);
-  }
-}
-
 app.use(express.json());
 
 app.get("/", (req, res) => {
   const uptime = process.uptime();
   const h = Math.floor(uptime / 3600), m = Math.floor((uptime % 3600) / 60), s = Math.floor(uptime % 60);
   res.json({
-    bot: "IgniteBot",
+    bot: "Nexus V2",
     status: botStatus,
     phone: botPhoneNumber ? "+" + botPhoneNumber : null,
     uptime: `${h}h ${m}m ${s}s`,
     session_format: "NEXUS-MD:~",
-    tip: "Set SESSION_ID env var with a NEXUS-MD:~ session to connect",
+    tip: "Set SESSION_ID env var with NEXUS-MD:~<base64> or NEXUS-MD:~https://pastebin.com/XxXxXx",
   });
 });
 
@@ -179,7 +204,26 @@ async function startBot() {
         console.log(`🔑 Session ID: ${currentSessionId.slice(0, 30)}...`);
         console.log("💡 Set SESSION_ID env var with this value to auto-connect on restart");
       }
-      console.log(`⚡ Bot ready — prefix: ${require("./lib/settings").get("prefix") || "."} | Type .menu`);
+      const prefix = require("./lib/settings").get("prefix") || ".";
+      console.log(`⚡ Bot ready — prefix: ${prefix} | Type ${prefix}menu`);
+
+      // ── Startup alive message → all super-admins ──────────────────────────
+      const { admins: adminNums } = require("./config");
+      if (adminNums && adminNums.length) {
+        const aliveMsg =
+          `╔══════════════════════╗\n` +
+          `║   🤖 *NEXUS V2*        ║\n` +
+          `╚══════════════════════╝\n\n` +
+          `✅ *Master, am alive!*\n\n` +
+          `📞 *Phone:* +${botPhoneNumber}\n` +
+          `⚡ *Prefix:* ${prefix}\n` +
+          `🕐 *Started:* ${new Date().toUTCString()}\n\n` +
+          `_Type \`${prefix}menu\` to see all commands_`;
+        for (const num of adminNums) {
+          const ownerJid = `${num.replace(/\D/g, "")}@s.whatsapp.net`;
+          await sock.sendMessage(ownerJid, { text: aliveMsg }).catch(() => {});
+        }
+      }
 
       if (alwaysOnlineInterval) clearInterval(alwaysOnlineInterval);
       alwaysOnlineInterval = setInterval(async () => {
@@ -346,7 +390,16 @@ async function startBot() {
 }
 
 db.init()
-  .then(() => startBot())
+  .then(async () => {
+    if (process.env.SESSION_ID) {
+      const isNexus = process.env.SESSION_ID.startsWith("NEXUS-MD");
+      if (isNexus || !fs.existsSync(AUTH_FOLDER)) {
+        console.log("📦 Restoring WhatsApp session from SESSION_ID...");
+        await restoreSession(process.env.SESSION_ID);
+      }
+    }
+    return startBot();
+  })
   .catch((err) => {
     console.error("Fatal bot error:", err);
     process.exit(1);
