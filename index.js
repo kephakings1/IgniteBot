@@ -267,12 +267,23 @@ async function startBot() {
         continue;
       }
 
-      // ── Auto typing indicator ────────────────────────────────────────────
-      if (settings.get("autoTyping")) {
-        await sock.sendPresenceUpdate("composing", from).catch(() => {});
+      // ── Auto typing / recording indicator ───────────────────────────────
+      const msgType = Object.keys(msg.message || {})[0];
+      const isVoiceOrAudio =
+        msgType === "audioMessage" ||
+        msg.message?.audioMessage?.ptt === true;
+
+      const shouldRecord = isVoiceOrAudio && settings.get("autoRecording");
+      const shouldType   = !isVoiceOrAudio && settings.get("autoTyping");
+
+      if (shouldRecord || shouldType) {
+        const presence = shouldRecord ? "recording" : "composing";
+        await sock.sendPresenceUpdate(presence, from).catch(() => {});
         if (settings.get("typingDelay")) {
-          // Human-like delay: 600-1800ms random
-          await new Promise(r => setTimeout(r, 600 + Math.floor(Math.random() * 1200)));
+          // Human-like delay: 600–1800ms (longer for voice: 800–2200ms)
+          const base = shouldRecord ? 800 : 600;
+          const extra = shouldRecord ? 1400 : 1200;
+          await new Promise(r => setTimeout(r, base + Math.floor(Math.random() * extra)));
         }
       }
 
@@ -307,8 +318,8 @@ async function startBot() {
       await commands.handle(sock, msg).catch((err) => {
         console.error("Message handler error:", err.message);
       });
-      // Signal end of typing
-      if (settings.get("autoTyping")) {
+      // Signal end of typing / recording
+      if (shouldRecord || shouldType) {
         await sock.sendPresenceUpdate("paused", from).catch(() => {});
       }
     }
