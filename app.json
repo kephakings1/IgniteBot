@@ -1,14 +1,14 @@
 {
   "name": "IgniteBot",
   "description": "Full-featured WhatsApp Bot with 30+ features: AI chat, sticker maker, media downloader, group management, e-commerce, booking system, analytics dashboard and more.",
-  "keywords": ["whatsapp", "bot", "nodejs", "ai", "openai", "baileys"],
+  "keywords": ["whatsapp", "bot", "nodejs", "baileys"],
   "repository": "https://github.com/yourusername/ignitebot",
   "logo": "",
   "success_url": "/",
   "stack": "heroku-22",
   "env": {
-    "OPENAI_API_KEY": {
-      "description": "OpenAI API key for AI Chat, Image Generation, and Text-to-Speech. Get yours at https://platform.openai.com/api-keys",
+    "SESSION_ID": {
+      "description": "Your WhatsApp session ID. Deploy first, scan QR or use phone pairing at /pair, then copy the Session ID shown and paste it here. The bot will auto-connect on every restart.",
       "required": false,
       "value": ""
     },
