@@ -73,7 +73,7 @@
 
 **Pairing Site:** `https://web-production-9e409.up.railway.app/pair`
 
-> Replace `YOUR_APP_URL` with your Heroku app URL or Replit deployment URL.  
+> Replace `https://web-production-9e409.up.railway.app/pair` with your Heroku app URL or Replit deployment URL.  
 > Example: `https://my-ignitebot.herokuapp.com/session`
 
 #### How pairing works:
