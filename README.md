@@ -61,20 +61,10 @@
 
 ---
 
-### Step 2 — Get your Session ID (Pairing)
-
-> Open the pairing site, enter your WhatsApp number, scan the code, and copy your **Session ID**.
-
-<p align="center">
-<a href="https://nexs-md-pair.onrender.com">
-  <img src="https://img.shields.io/badge/🔗_Get_Session_ID-25D366?style=for-the-badge&logo=whatsapp&logoColor=white" alt="Get Session ID" />
-</a>
-</p>
-
-**Pairing Site:** `https://web-production-9e409.up.railway.app/pair`
-
-> Replace `https://web-production-9e409.up.railway.app/pair` with your Heroku app URL or Replit deployment URL.  
-> Example: `https://my-ignitebot.herokuapp.com/session`
+## ` Pair onrender`
+<p align="centre">
+<a href="https://web-production-9e409.up.railway.app/pair"><img height= "37" title="Author" src="https://img.shields.io/badge/Session-green?style=for-the-badge&logo=render"></a>
+<p/>
 
 #### How pairing works:
 1. Open the pairing link above
