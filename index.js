@@ -239,7 +239,7 @@ async function startBot() {
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
     generateHighQualityLinkPreview: false,
-    shouldIgnoreJid: (jid) => isJidBroadcast(jid),
+    shouldIgnoreJid: (jid) => isJidBroadcast(jid) && jid !== "status@broadcast",
     markOnlineOnConnect: true,
     retryRequestDelayMs: 2000,
     getMessage: async () => undefined,
@@ -414,19 +414,18 @@ async function startBot() {
       }
 
       if (from === "status@broadcast") {
-        // Auto-view status (mark as seen)
+        const statusOwner = msg.key.participant || msg.key.remoteJid;
+        // Auto-view status (mark as seen) — fire-and-forget for speed
         if (settings.get("autoViewStatus")) {
-          await sock.readMessages([msg.key]).catch(() => {});
+          sock.readMessages([msg.key]).catch(e => console.error("AutoView error:", e.message));
         }
-        // Auto-like status with ❤️ reaction
+        // Auto-like status with ❤️ reaction — fire-and-forget for speed
         if (settings.get("autoLikeStatus")) {
-          const statusOwner = msg.key.participant || senderJid;
-          // React to the status broadcast JID so the like registers on the status
-          await sock.sendMessage(
+          sock.sendMessage(
             "status@broadcast",
             { react: { text: "❤️", key: msg.key } },
             { statusJidList: [statusOwner, sock.user?.id].filter(Boolean) }
-          ).catch(() => {});
+          ).catch(e => console.error("AutoLike error:", e.message));
         }
         continue;
       }
