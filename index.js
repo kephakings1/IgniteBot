@@ -190,8 +190,10 @@ app.get("/", (req, res) => {
     uptime: `${h}h ${m}m ${s}s`,
     session_format: "NEXUS-MD:~",
     tip: botStatus !== "connected"
-      ? `Bot not connected. Get a session at ${PAIR_SITE_URL} then set SESSION_ID env var. Or use /pair/YOUR_PHONE_NUMBER for direct pairing.`
+      ? `Not connected. 1) Visit ${PAIR_SITE_URL} to get a NEXUS-MD session ID. 2) POST it to /session to connect: curl -X POST /session -H 'Content-Type:application/json' -d '{"session":"NEXUS-MD..."}'`
       : "Bot is connected! Type .menu in WhatsApp to get started.",
+    sessionEndpoint: "POST /session  { session: 'NEXUS-MD...' }",
+    pairingSite: PAIR_SITE_URL,
     pairingCode: pairingCode || null,
   });
 });
@@ -204,6 +206,32 @@ app.get("/api/session", (req, res) => {
   const sid = encodeSession();
   currentSessionId = sid;
   res.json({ sessionId: sid, connected: botStatus === "connected", phone: botPhoneNumber });
+});
+
+// Accept a NEXUS-MD session ID and connect immediately
+app.post("/session", async (req, res) => {
+  const { session, sessionId } = req.body || {};
+  const raw = session || sessionId;
+  if (!raw) return res.status(400).json({ error: "Provide { session: 'NEXUS-MD...' } in the request body." });
+  if (!raw.startsWith("NEXUS-MD")) return res.status(400).json({ error: "Session ID must start with NEXUS-MD." });
+
+  try {
+    console.log("📥 Restoring session from POST /session ...");
+    const ok = await restoreSession(raw);
+    if (!ok) return res.status(500).json({ error: "Failed to restore session. Check that your session ID is valid." });
+
+    res.json({ ok: true, message: "Session saved. Reconnecting bot..." });
+
+    // Tear down the current socket so the connection handler restarts with new creds
+    reconnectAttempts = 0;
+    if (sockRef) {
+      try { sockRef.ws.close(); } catch {}
+    } else {
+      setTimeout(startBot, 500);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Redirect bare /pair to the external pairing site
@@ -270,10 +298,11 @@ async function startBot() {
       host = `http://localhost:${PORT}`;
     }
     console.log("⚠️  No WhatsApp session found.");
-    console.log(`🔗 Get a session at: ${PAIR_SITE_URL}`);
-    console.log("   1. Enter your number  2. Enter the code in WhatsApp → Linked Devices");
-    console.log("   3. Copy the SESSION_ID shown  4. Set it as SESSION_ID env var & restart");
-    console.log(`   Or direct pair: ${host}/pair/YOUR_PHONE_NUMBER`);
+    console.log(`🔗 Step 1 — Get a NEXUS-MD session ID at: ${PAIR_SITE_URL}`);
+    console.log("   Enter your number → enter the code in WhatsApp → copy the NEXUS-MD session ID shown");
+    console.log(`🔗 Step 2 — POST it here to connect instantly:`);
+    console.log(`   curl -X POST ${host}/session -H 'Content-Type: application/json' -d '{"session":"NEXUS-MD..."}'`);
+    console.log(`   Or direct pair without Railway: ${host}/pair/YOUR_PHONE_NUMBER`);
   }
 
   const { version } = await fetchLatestBaileysVersion();
