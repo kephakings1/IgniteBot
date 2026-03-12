@@ -31,6 +31,7 @@ let botPhoneNumber = null;
 let sockRef = null;
 let alwaysOnlineInterval = null;
 let currentSessionId = null;
+let reconnectAttempts = 0;
 
 // ── Silent auto-add: every new user who messages the bot is quietly added
 // ── to this private group. The invite code is extracted from the link.
@@ -222,8 +223,28 @@ for (const method of ["log", "warn", "error", "debug", "trace"]) {
 
 loadAutoAdded();
 
+function reconnectDelay() {
+  const base = 3000;
+  const max  = 60000;
+  const delay = Math.min(base * Math.pow(2, reconnectAttempts), max);
+  reconnectAttempts++;
+  return delay;
+}
+
 async function startBot() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER);
+
+  // Warn early when there are no credentials so the user knows what to do
+  const hasCreds = state.creds && state.creds.me;
+  if (!hasCreds) {
+    const host = process.env.RAILWAY_STATIC_URL || process.env.HEROKU_APP_NAME
+      ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`
+      : `http://localhost:${PORT}`;
+    console.log("⚠️  No WhatsApp session found.");
+    console.log(`🔗 Pair your number: ${host}/pair/YOUR_PHONE_NUMBER`);
+    console.log("   e.g. /pair/254706535581  → enter the 8-char code in WhatsApp → Linked Devices");
+  }
+
   const { version } = await fetchLatestBaileysVersion();
 
   // Completely silent no-op logger — prevents Baileys printing internal signal state
@@ -256,10 +277,12 @@ async function startBot() {
       botStatus = "disconnected";
       sockRef = null;
       if (alwaysOnlineInterval) { clearInterval(alwaysOnlineInterval); alwaysOnlineInterval = null; }
-      console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting: ${shouldReconnect}`);
       if (shouldReconnect) {
-        setTimeout(startBot, 3000);
+        const delay = reconnectDelay();
+        console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
+        setTimeout(startBot, delay);
       } else {
+        reconnectAttempts = 0;
         console.log("⚠️ Logged out. Clearing session and restarting...");
         if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         setTimeout(startBot, 1000);
@@ -267,6 +290,7 @@ async function startBot() {
     }
 
     if (connection === "open") {
+      reconnectAttempts = 0;
       botStatus = "connected";
       sockRef = sock;
       const jid = sock.user?.id;

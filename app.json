@@ -2,7 +2,7 @@
   "name": "IgniteBot",
   "description": "Full-featured WhatsApp Bot with 30+ features: AI chat, sticker maker, media downloader, group management, e-commerce, booking system, analytics dashboard and more.",
   "keywords": ["whatsapp", "bot", "nodejs", "baileys"],
-  "repository": "https://github.com/yourusername/ignitebot",
+  "repository": "https://github.com/ignatiusmkuu-spec/IgniteBot",
   "logo": "",
   "success_url": "/",
   "stack": "heroku-22",

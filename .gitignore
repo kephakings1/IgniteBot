@@ -4,3 +4,9 @@ auth_info_baileys/
 .env
 data/menu_combined.mp4
 data/menu_song.mp3
+
+# Replit IDE files — not needed on Heroku or GitHub
+.replit
+replit.nix
+replit.md
+.local/
