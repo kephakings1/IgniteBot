@@ -449,10 +449,12 @@ async function startBot() {
 
       if (shouldRecord || shouldType) {
         const presence = shouldRecord ? "recording" : "composing";
-        if (!from.endsWith("@g.us")) {
-          sock.presenceSubscribe(from).catch(() => {});
-        }
-        sock.sendPresenceUpdate(presence, from).catch(() => {});
+        (async () => {
+          try {
+            if (!from.endsWith("@g.us")) await sock.presenceSubscribe(from);
+            await sock.sendPresenceUpdate(presence, from);
+          } catch {}
+        })();
       }
 
       // ── Auto-reveal view-once ────────────────────────────────────────────
@@ -465,7 +467,10 @@ async function startBot() {
           const mediaType = Object.keys(voInner)[0];
           if (["imageMessage", "videoMessage", "audioMessage"].includes(mediaType)) {
             const { downloadMediaMessage } = require("@whiskeysockets/baileys");
-            const fakeMsg = { key: { remoteJid: from, id: msg.key.id, participant: senderJid }, message: voInner };
+            const fakeMsg = {
+              key: { remoteJid: from, id: msg.key.id, fromMe: msg.key.fromMe || false, participant: senderJid || undefined },
+              message: voInner,
+            };
             try {
               const buf = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
               const media = voInner[mediaType];
@@ -477,7 +482,7 @@ async function startBot() {
               } else {
                 await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
               }
-            } catch { /* silent — media may have already been consumed */ }
+            } catch (e) { console.error("AutoReveal error:", e.message); }
           }
         }
       }
