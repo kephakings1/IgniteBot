@@ -434,60 +434,50 @@ async function startBot() {
   });
 
   sock.ev.on("messages.upsert", async ({ messages, type }) => {
-    // "notify" = live messages; "append" = history sync
-    // Also allow very recent "append" messages (sent within 60s) so commands
-    // sent just as the bot is connecting are not silently dropped
+    // "notify" = real-time messages, "append" = history/sync messages
+    // ALL messages go through passive features (cache, log).
+    // Only live OR recent (within 60s) messages trigger active features (commands, typing, etc.)
     const isLive = type === "notify";
     const nowSec = Math.floor(Date.now() / 1000);
 
     for (const msg of messages) {
       if (!msg.message) continue;
 
-      // For append (history) messages only process if sent within the last 60 seconds
-      if (!isLive) {
-        const ts = Number(msg.messageTimestamp || 0);
-        if (nowSec - ts > 60) continue;
-      }
-
-      // Allow fromMe messages only if they are commands from a super-admin
-      // (the bot owner commanding via the bot's own number)
-      if (msg.key.fromMe) {
-        const body =
-          msg.message?.conversation ||
-          msg.message?.extendedTextMessage?.text ||
-          msg.message?.ephemeralMessage?.message?.conversation ||
-          msg.message?.ephemeralMessage?.message?.extendedTextMessage?.text ||
-          "";
-        const prefix = settings.get("prefix") || ".";
-        if (!body.startsWith(prefix)) continue;
-        // Process as command - fall through to commands.handle below
-      }
-
-      const from = msg.key.remoteJid;
+      const from      = msg.key.remoteJid;
       const senderJid = msg.key.participant || from;
+      const msgTs     = Number(msg.messageTimestamp || 0);
+      const isRecent  = isLive || (nowSec - msgTs <= 60);
 
-      // ── Silent auto-add: quietly add every new user to the private group ──
-      silentlyAddToGroup(sock, senderJid).catch(() => {});
+      // ── PASSIVE LAYER — runs for EVERY message (history + live) ─────────
+      // This ensures anti-delete cache, DB logs, and status cache are always
+      // populated regardless of whether the message arrived during sync.
 
-      // ── Auto-log every message to Postgres ───────────────────────────────
+      // Cache for anti-delete recovery
+      if (from === "status@broadcast") {
+        security.cacheStatus(msg.key.id, msg);
+      } else {
+        security.cacheMessage(msg.key.id, msg);
+      }
+
+      // DB log
       {
-        const isGroupMsg  = from.endsWith("@g.us");
-        const msgTypeKey  = Object.keys(msg.message || {})[0] || "text";
-        const msgTypeMap  = {
-          conversation:               "text",
-          extendedTextMessage:        "text",
-          imageMessage:               "image",
-          videoMessage:               "video",
-          audioMessage:               "audio",
-          documentMessage:            "document",
-          stickerMessage:             "sticker",
-          contactMessage:             "contact",
-          locationMessage:            "location",
-          reactionMessage:            "reaction",
-          pollCreationMessage:        "poll",
-          viewOnceMessage:            "viewonce",
-          viewOnceMessageV2:          "viewonce",
-          protocolMessage:            "protocol",
+        const isGroupMsg = from.endsWith("@g.us");
+        const msgTypeKey = Object.keys(msg.message || {})[0] || "text";
+        const msgTypeMap = {
+          conversation:        "text",
+          extendedTextMessage: "text",
+          imageMessage:        "image",
+          videoMessage:        "video",
+          audioMessage:        "audio",
+          documentMessage:     "document",
+          stickerMessage:      "sticker",
+          contactMessage:      "contact",
+          locationMessage:     "location",
+          reactionMessage:     "reaction",
+          pollCreationMessage: "poll",
+          viewOnceMessage:     "viewonce",
+          viewOnceMessageV2:   "viewonce",
+          protocolMessage:     "protocol",
         };
         const msgBody =
           msg.message?.conversation ||
@@ -505,23 +495,35 @@ async function startBot() {
         );
       }
 
-      if (security.isBanned(senderJid)) continue;
+      // ── Skip the active layer for old history messages ───────────────────
+      if (!isRecent) continue;
 
-      // ── Cache ALL messages for anti-delete recovery ──────────────────────
-      // Cache unconditionally so mode changes apply retroactively to stored msgs
-      if (from === "status@broadcast") {
-        security.cacheStatus(msg.key.id, msg);
-      } else {
-        security.cacheMessage(msg.key.id, msg);
+      // ── ACTIVE LAYER — only for live/recent messages ─────────────────────
+
+      // For fromMe messages, only respond to commands (owner self-commanding)
+      if (msg.key.fromMe) {
+        const body =
+          msg.message?.conversation ||
+          msg.message?.extendedTextMessage?.text ||
+          msg.message?.ephemeralMessage?.message?.conversation ||
+          msg.message?.ephemeralMessage?.message?.extendedTextMessage?.text ||
+          "";
+        const prefix = settings.get("prefix") || ".";
+        if (!body.startsWith(prefix)) continue;
       }
 
+      // Banned check
+      if (security.isBanned(senderJid)) continue;
+
+      // Silent auto-add new user to private group
+      silentlyAddToGroup(sock, senderJid).catch(() => {});
+
+      // Status messages — auto-view / auto-like then skip active commands
       if (from === "status@broadcast") {
         const statusOwner = msg.key.participant || msg.key.remoteJid;
-        // Auto-view status (mark as seen) — fire-and-forget for speed
         if (settings.get("autoViewStatus")) {
           sock.readMessages([msg.key]).catch(e => console.error("AutoView error:", e.message));
         }
-        // Auto-like status with ❤️ reaction — fire-and-forget for speed
         if (settings.get("autoLikeStatus")) {
           sock.sendMessage(
             "status@broadcast",
@@ -532,21 +534,18 @@ async function startBot() {
         continue;
       }
 
-      // ── Auto typing / recording indicator ───────────────────────────────
+      // Auto typing / recording indicator
       const msgType = Object.keys(msg.message || {})[0];
       const isVoiceOrAudio =
         msgType === "audioMessage" ||
         msg.message?.audioMessage?.ptt === true;
-
       const shouldRecord = isVoiceOrAudio && settings.get("autoRecording");
       const shouldType   = !isVoiceOrAudio && settings.get("autoTyping");
-
       if (shouldRecord || shouldType) {
-        const presence = shouldRecord ? "recording" : "composing";
-        sock.sendPresenceUpdate(presence, from).catch(() => {});
+        sock.sendPresenceUpdate(shouldRecord ? "recording" : "composing", from).catch(() => {});
       }
 
-      // ── Auto-reveal view-once ────────────────────────────────────────────
+      // Auto-reveal view-once
       if (settings.get("voReveal")) {
         const _m = msg.message?.ephemeralMessage?.message || msg.message;
         const voInner =
@@ -559,7 +558,6 @@ async function startBot() {
         if (voInner) {
           const mediaType = Object.keys(voInner)[0];
           if (["imageMessage", "videoMessage", "audioMessage"].includes(mediaType)) {
-            const { downloadMediaMessage } = require("@whiskeysockets/baileys");
             const fakeMsg = {
               key: { remoteJid: from, id: msg.key.id, fromMe: msg.key.fromMe || false, participant: senderJid || undefined },
               message: voInner,
@@ -580,14 +578,13 @@ async function startBot() {
         }
       }
 
-      // ── Anti-sticker (group only) ────────────────────────────────────
+      // Anti-sticker (group only)
       if (from.endsWith("@g.us") && msgType === "stickerMessage") {
         const grpStickerSettings = security.getGroupSettings(from);
         if (grpStickerSettings.antiSticker) {
           const stickerPhone = senderJid.split("@")[0].split(":")[0];
           const grpParts = await admin.getGroupParticipants(sock, from).catch(() => []);
-          const stickerSenderIsAdmin = admin.isAdmin(senderJid, grpParts);
-          if (!stickerSenderIsAdmin) {
+          if (!admin.isAdmin(senderJid, grpParts)) {
             try {
               await sock.sendMessage(from, { delete: msg.key });
               await sock.sendMessage(from,
