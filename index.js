@@ -255,8 +255,19 @@ app.get("/pair/:phone", async (req, res) => {
   }
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+const _server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`⚡ IgniteBot running on port ${PORT}`);
+});
+_server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.log(`⚠️  Port ${PORT} busy — killing old process and retrying in 1.5s…`);
+    const { execSync } = require("child_process");
+    try { execSync(`fuser -k ${PORT}/tcp`); } catch {}
+    setTimeout(() => _server.listen(PORT, "0.0.0.0"), 1500);
+  } else {
+    console.error("Server error:", err.message);
+    process.exit(1);
+  }
 });
 
 
