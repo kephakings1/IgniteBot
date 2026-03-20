@@ -104,18 +104,61 @@ function encodeSession() {
 
 // Normalise known short-link hosts to their raw/download equivalents
 function normaliseUrl(url) {
-  // Pastebin  → raw
+  // Pastebin  → raw (always https)
   url = url.replace(/^https?:\/\/pastebin\.com\/(?!raw\/)([A-Za-z0-9]+)$/, "https://pastebin.com/raw/$1");
-  // GitHub Gist share page → raw
-  url = url.replace(/^(https?:\/\/gist\.github\.com\/[^/]+\/[a-f0-9]+)\/?$/, "$1/raw");
-  // GitHub blob → raw
+  // GitHub Gist share page → raw (always https)
+  url = url.replace(/^https?:\/\/gist\.github\.com\/([^/]+\/[a-f0-9]+)\/?$/, "https://gist.github.com/$1/raw");
+  // GitHub blob → raw.githubusercontent.com (always https)
   url = url.replace(/^https?:\/\/github\.com\/(.+?)\/blob\/(.+)$/, "https://raw.githubusercontent.com/$1/$2");
   return url;
 }
 
-// Fetch text from any URL
+// Guard: reject non-https and private/internal addresses (SSRF protection)
+function assertSafeUrl(rawUrl) {
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { throw new Error("Invalid URL"); }
+  if (parsed.protocol !== "https:") throw new Error("Only https:// URLs are accepted");
+  const host = parsed.hostname.toLowerCase();
+  // Block localhost variants
+  if (host === "localhost" || host === "::1") throw new Error("Private host not allowed");
+  // Block .local mDNS
+  if (host.endsWith(".local")) throw new Error("Private host not allowed");
+  // Block private / link-local IPv4 ranges
+  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4) {
+    const [, a, b] = ipv4.map(Number);
+    if (
+      a === 10 ||                         // 10.0.0.0/8
+      (a === 172 && b >= 16 && b <= 31) || // 172.16.0.0/12
+      (a === 192 && b === 168) ||          // 192.168.0.0/16
+      (a === 127) ||                       // 127.0.0.0/8 loopback
+      (a === 169 && b === 254) ||          // 169.254.0.0/16 link-local
+      (a === 100 && b >= 64 && b <= 127) || // 100.64.0.0/10 CGNAT
+      a === 0                             // 0.0.0.0/8
+    ) throw new Error("Private/reserved IP not allowed");
+  }
+  // Block IPv6 private ranges (simplified)
+  if (host.startsWith("[")) {
+    const inner = host.slice(1, -1).toLowerCase();
+    if (inner === "::1" || inner.startsWith("fc") || inner.startsWith("fd") || inner.startsWith("fe80")) {
+      throw new Error("Private/link-local IPv6 not allowed");
+    }
+  }
+}
+
+// Fetch text from a safe https:// URL
 async function fetchUrl(url) {
-  const res = await axios.get(url, { responseType: "text", timeout: 15000, maxRedirects: 10 });
+  assertSafeUrl(url);
+  const res = await axios.get(url, {
+    responseType: "text",
+    timeout: 15000,
+    maxRedirects: 5,
+    // Validate each redirect target too
+    beforeRedirect: (_opts, { headers }) => {
+      const location = headers.location;
+      if (location) assertSafeUrl(new URL(location, url).href);
+    }
+  });
   return String(res.data).trim();
 }
 
@@ -154,7 +197,7 @@ async function restoreSession(sessionId) {
       const afterPrefix = id.replace(NEXUS_RE, "").trim();
 
       // URL variant: NEXUS-MD:~https://...
-      if (/^https?:\/\//i.test(afterPrefix)) {
+      if (/^https:\/\//i.test(afterPrefix)) {
         const rawUrl = normaliseUrl(afterPrefix);
         console.log(`🌐 Fetching session from URL: ${rawUrl}`);
         const fetched = await fetchUrl(rawUrl);
@@ -167,8 +210,8 @@ async function restoreSession(sessionId) {
       return true;
     }
 
-    // ── 2. Bare URL ───────────────────────────────────────────────────────
-    if (/^https?:\/\//i.test(id)) {
+    // ── 2. Bare https:// URL ──────────────────────────────────────────────
+    if (/^https:\/\//i.test(id)) {
       const rawUrl = normaliseUrl(id);
       console.log(`🌐 Fetching session from URL: ${rawUrl}`);
       const fetched = await fetchUrl(rawUrl);
@@ -298,8 +341,8 @@ app.post("/session", async (req, res) => {
 // POST /session/url  { url: "https://..." }
 app.post("/session/url", async (req, res) => {
   const { url } = req.body || {};
-  if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({
-    error: "Provide { url: 'https://...' } — a public URL that returns session data."
+  if (!url || !/^https:\/\//i.test(url)) return res.status(400).json({
+    error: "Provide { url: 'https://...' } — only https:// URLs are accepted."
   });
 
   try {
