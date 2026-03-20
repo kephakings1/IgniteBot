@@ -102,78 +102,132 @@ function encodeSession() {
   }
 }
 
-// Convert any Pastebin share URL to its raw counterpart
-function normalizePastebinUrl(url) {
-  return url.replace(/^https?:\/\/pastebin\.com\/(?!raw\/)([A-Za-z0-9]+)$/, "https://pastebin.com/raw/$1");
+// Normalise known short-link hosts to their raw/download equivalents
+function normaliseUrl(url) {
+  // Pastebin  → raw
+  url = url.replace(/^https?:\/\/pastebin\.com\/(?!raw\/)([A-Za-z0-9]+)$/, "https://pastebin.com/raw/$1");
+  // GitHub Gist share page → raw
+  url = url.replace(/^(https?:\/\/gist\.github\.com\/[^/]+\/[a-f0-9]+)\/?$/, "$1/raw");
+  // GitHub blob → raw
+  url = url.replace(/^https?:\/\/github\.com\/(.+?)\/blob\/(.+)$/, "https://raw.githubusercontent.com/$1/$2");
+  return url;
 }
 
-// Fetch text from a URL using axios
+// Fetch text from any URL
 async function fetchUrl(url) {
-  const axios = require("axios");
-  const res = await axios.get(url, { responseType: "text", timeout: 10000, maxRedirects: 5 });
+  const res = await axios.get(url, { responseType: "text", timeout: 15000, maxRedirects: 10 });
   return String(res.data).trim();
 }
 
-// Write creds.json from a raw JSON string or base64-encoded JSON string
+// Write creds.json from a raw JSON string or base64-encoded JSON string.
+// Strips any known bot prefix before decoding.
 function writeCreds(raw) {
+  const stripped = raw.replace(NEXUS_RE, "").trim();
   let json;
-  try { json = JSON.parse(raw); } catch {
-    // Not plain JSON — try base64 decode
-    const decoded = Buffer.from(raw.replace(NEXUS_RE, ""), "base64").toString("utf8");
+  try {
+    json = JSON.parse(stripped);
+  } catch {
+    const decoded = Buffer.from(stripped, "base64").toString("utf8");
     json = JSON.parse(decoded);
   }
+  // Validate it looks like Baileys creds
+  if (!json || typeof json !== "object") throw new Error("Not a valid creds object");
   fs.mkdirSync(AUTH_FOLDER, { recursive: true });
   fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), JSON.stringify(json));
 }
 
+// ── Universal session restorer ───────────────────────────────────────────────
+// Accepts (in order of attempt):
+//   1. NEXUS-MD:~ prefixed base64/URL sessions
+//   2. Any https:// URL — fetches content then recurses
+//   3. Raw JSON string  { noiseKey: {...}, ... }
+//   4. Plain base64-encoded creds.json
+//   5. Legacy multi-file base64 map { "creds.json": "<b64>", ... }
+//   6. Any other known bot prefix (WAMD:, TENNOR:, etc.) stripped then treated as base64
 async function restoreSession(sessionId) {
   try {
     fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+    const id = (sessionId || "").trim();
 
-    if (sessionId.startsWith("NEXUS-MD")) {
-      const afterPrefix = sessionId.replace(NEXUS_RE, "").trim();
+    // ── 1. NEXUS-MD prefixed ──────────────────────────────────────────────
+    if (id.startsWith("NEXUS-MD")) {
+      const afterPrefix = id.replace(NEXUS_RE, "").trim();
 
-      // ── URL-based short session: NEXUS-MD:~https://pastebin.com/XxXxXx ──
+      // URL variant: NEXUS-MD:~https://...
       if (/^https?:\/\//i.test(afterPrefix)) {
-        const rawUrl = normalizePastebinUrl(afterPrefix);
+        const rawUrl = normaliseUrl(afterPrefix);
         console.log(`🌐 Fetching session from URL: ${rawUrl}`);
         const fetched = await fetchUrl(rawUrl);
-
-        // Handle JSON API responses that contain a sessionId field
-        // e.g. { sessionId: "NEXUS-MD...", connected: true, phone: "..." }
-        let sessionPayload = fetched;
-        try {
-          const parsed = JSON.parse(fetched);
-          if (parsed.sessionId) {
-            console.log("📡 Extracted sessionId from API JSON response");
-            sessionPayload = parsed.sessionId;
-          }
-        } catch { /* Not JSON — use raw content as-is */ }
-
-        // Strip NEXUS-MD prefix if present, then write creds
-        const payload = sessionPayload.startsWith("NEXUS-MD")
-          ? sessionPayload.replace(NEXUS_RE, "").trim()
-          : sessionPayload;
-        writeCreds(payload);
-        console.log("✅ Session restored from remote URL (NEXUS-MD short session)");
-        return true;
+        return await restoreSession(fetched);   // recurse with fetched content
       }
 
-      // ── Standard NEXUS-MD base64 session ──
+      // Standard NEXUS-MD base64
       writeCreds(afterPrefix);
-      console.log("✅ Session restored from NEXUS-MD session ID");
+      console.log("✅ Session restored (NEXUS-MD format)");
       return true;
     }
 
-    // ── Legacy multi-file format — base64 of { filename: base64content } ──
-    const files = JSON.parse(Buffer.from(sessionId, "base64").toString("utf8"));
-    for (const [name, content] of Object.entries(files)) {
-      const filePath = path.join(AUTH_FOLDER, name);
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, Buffer.from(content, "base64"));
+    // ── 2. Bare URL ───────────────────────────────────────────────────────
+    if (/^https?:\/\//i.test(id)) {
+      const rawUrl = normaliseUrl(id);
+      console.log(`🌐 Fetching session from URL: ${rawUrl}`);
+      const fetched = await fetchUrl(rawUrl);
+      return await restoreSession(fetched);     // recurse with fetched content
     }
-    console.log("✅ Session restored from legacy SESSION_ID");
-    return true;
+
+    // ── 3. JSON API response wrapping a session ───────────────────────────
+    //    e.g. { sessionId: "NEXUS-MD...", ... } or { session: "...", creds: {...} }
+    try {
+      const parsed = JSON.parse(id);
+      const inner = parsed.sessionId || parsed.session || parsed.id || parsed.key;
+      if (inner && typeof inner === "string") {
+        console.log("📡 Extracted session from JSON wrapper");
+        return await restoreSession(inner);
+      }
+      // Raw creds object itself
+      if (parsed.noiseKey || parsed.signedIdentityKey || parsed.me || parsed.registered) {
+        fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+        fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), JSON.stringify(parsed));
+        console.log("✅ Session restored (raw JSON creds)");
+        return true;
+      }
+    } catch { /* not JSON — continue */ }
+
+    // ── 4. Plain base64 → creds.json ─────────────────────────────────────
+    try {
+      const decoded = Buffer.from(id, "base64").toString("utf8");
+      const parsed = JSON.parse(decoded);
+      // Could be raw creds or a multi-file map
+      if (parsed.noiseKey || parsed.signedIdentityKey || parsed.me || parsed.registered) {
+        fs.mkdirSync(AUTH_FOLDER, { recursive: true });
+        fs.writeFileSync(path.join(AUTH_FOLDER, "creds.json"), JSON.stringify(parsed));
+        console.log("✅ Session restored (base64 creds)");
+        return true;
+      }
+      // ── 5. Legacy multi-file map { "creds.json": "<b64>", ... } ──────
+      if (typeof parsed === "object" && !Array.isArray(parsed)) {
+        const keys = Object.keys(parsed);
+        if (keys.some(k => k.endsWith(".json") || k === "creds")) {
+          for (const [name, content] of Object.entries(parsed)) {
+            const filePath = path.join(AUTH_FOLDER, name);
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            fs.writeFileSync(filePath, Buffer.from(String(content), "base64"));
+          }
+          console.log("✅ Session restored (legacy multi-file format)");
+          return true;
+        }
+      }
+    } catch { /* not base64 JSON — continue */ }
+
+    // ── 6. Other bot prefixes (WAMD:, TENNOR:, etc.) ─────────────────────
+    const OTHER_PREFIX_RE = /^[A-Z][A-Z0-9_-]{1,15}[^A-Za-z0-9+/=]*/;
+    if (OTHER_PREFIX_RE.test(id)) {
+      const stripped = id.replace(OTHER_PREFIX_RE, "").trim();
+      console.log("🔄 Stripped unknown prefix — retrying...");
+      return await restoreSession(stripped);
+    }
+
+    throw new Error("Could not recognise session format. Tried: NEXUS-MD, URL, JSON, base64, multi-file, prefixed.");
   } catch (err) {
     console.error("❌ Failed to restore session:", err.message);
     return false;
@@ -210,21 +264,51 @@ app.get("/api/session", (req, res) => {
   res.json({ sessionId: sid, connected: botStatus === "connected", phone: botPhoneNumber });
 });
 
-// Accept a NEXUS-MD session ID and connect immediately
+// ── Accept any session ID/string and connect ─────────────────────────────────
+// Accepts: NEXUS-MD, bare URL, raw JSON, base64, multi-file map, any prefix
 app.post("/session", async (req, res) => {
   const { session, sessionId } = req.body || {};
-  const raw = session || sessionId;
-  if (!raw) return res.status(400).json({ error: "Provide { session: 'NEXUS-MD...' } in the request body." });
-  if (!raw.startsWith("NEXUS-MD")) return res.status(400).json({ error: "Session ID must start with NEXUS-MD." });
+  const raw = (session || sessionId || "").trim();
+  if (!raw) return res.status(400).json({
+    error: "Provide { session: '...' } in the request body.",
+    hint: "Accepted formats: NEXUS-MD:~..., any https:// URL, raw JSON creds, base64 creds"
+  });
 
   try {
-    console.log("📥 Restoring session from POST /session ...");
+    console.log("📥 Restoring session (universal detector)...");
     const ok = await restoreSession(raw);
-    if (!ok) return res.status(500).json({ error: "Failed to restore session. Check that your session ID is valid." });
+    if (!ok) return res.status(500).json({
+      error: "Could not restore session. Make sure it is a valid Baileys creds.json (any format)."
+    });
 
     res.json({ ok: true, message: "Session saved. Reconnecting bot..." });
 
-    // Tear down the current socket so the connection handler restarts with new creds
+    reconnectAttempts = 0;
+    if (sockRef) {
+      try { sockRef.ws.close(); } catch {}
+    } else {
+      setTimeout(startBot, 500);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Load session from any URL ─────────────────────────────────────────────────
+// POST /session/url  { url: "https://..." }
+app.post("/session/url", async (req, res) => {
+  const { url } = req.body || {};
+  if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({
+    error: "Provide { url: 'https://...' } — a public URL that returns session data."
+  });
+
+  try {
+    console.log(`📥 Loading session from URL: ${url}`);
+    const ok = await restoreSession(url);
+    if (!ok) return res.status(500).json({ error: "Could not load a valid session from that URL." });
+
+    res.json({ ok: true, message: "Session loaded from URL. Reconnecting bot..." });
+
     reconnectAttempts = 0;
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
@@ -873,11 +957,9 @@ db.init()
     settings.initSettings();
 
     if (process.env.SESSION_ID) {
-      const isNexus = process.env.SESSION_ID.startsWith("NEXUS-MD");
-      if (isNexus || !fs.existsSync(AUTH_FOLDER)) {
-        console.log("📦 Restoring WhatsApp session from SESSION_ID...");
-        await restoreSession(process.env.SESSION_ID);
-      }
+      // Always restore — universal detector handles all formats
+      console.log("📦 Restoring WhatsApp session from SESSION_ID (universal)...");
+      await restoreSession(process.env.SESSION_ID);
     }
     return startBot();
   })

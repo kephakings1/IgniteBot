@@ -168,7 +168,7 @@ tr:last-child td{border-bottom:none}
     </div>
     <div class="info-item">
       <div class="label">Session Format</div>
-      <div class="val" style="color:#58a6ff">NEXUS-MD:~</div>
+      <div class="val" style="color:#3fb950">Universal (any Baileys bot)</div>
     </div>
   </div>
 
@@ -177,7 +177,7 @@ tr:last-child td{border-bottom:none}
     <p style="font-size:0.85rem;color:#8b949e;margin-bottom:16px">
       This is your bot's session ID in <strong style="color:#58a6ff">NEXUS-MD</strong> format.
       Copy and save it — paste it as the <code style="background:#21262d;padding:2px 6px;border-radius:4px;font-family:monospace">SESSION_ID</code>
-      config var on Heroku or Railway to keep your bot online.
+      environment variable on Heroku, Railway, Render or Replit to keep your bot online.
     </p>
 
     <div class="sid-wrap">
@@ -197,8 +197,19 @@ tr:last-child td{border-bottom:none}
         <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Heroku:</strong> Go to your app → Settings → Config Vars → add <code>SESSION_ID</code> and paste</div></div>
         <div class="step"><div class="step-num">3</div><div class="step-text"><strong>Railway / Render:</strong> Go to Variables → add <code>SESSION_ID</code> and paste</div></div>
         <div class="step"><div class="step-num">4</div><div class="step-text"><strong>Replit:</strong> Go to Secrets → add <code>SESSION_ID</code> and paste. On the next restart the bot will auto-connect without scanning</div></div>
-        <div class="step"><div class="step-num">5</div><div class="step-text">Any session starting with <code>NEXUS-MD</code> is automatically recognised and will start the bot without re-pairing</div></div>
+        <div class="step"><div class="step-num">5</div><div class="step-text"><strong>Universal support:</strong> Any valid Baileys session is accepted — <code>NEXUS-MD</code>, raw JSON, base64, a Pastebin/GitHub Gist URL, or sessions from other Baileys-based bots</div></div>
+        <div class="step"><div class="step-num">6</div><div class="step-text"><strong>Load from URL:</strong> POST <code>/session/url</code> with <code>{"{"} "url": "https://..." {"}"}</code> to load a session from any public URL</div></div>
       </div>
+    </div>
+
+    <div class="section" style="background:#0d1117;border-color:#21262d;margin-top:16px">
+      <h2 style="font-size:0.9rem;margin-bottom:10px">🔌 Load session from a URL</h2>
+      <p style="font-size:0.8rem;color:#8b949e;margin-bottom:12px">Paste any public URL that returns session data (Pastebin, GitHub Gist, direct file link, API endpoint, etc.)</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="sessionUrlInput" type="url" placeholder="https://pastebin.com/XxXxXx  or  https://gist.github.com/..." style="flex:1;min-width:200px;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 12px;color:#c9d1d9;font-size:0.85rem" />
+        <button class="btn btn-blue" onclick="loadSessionFromUrl()">📡 Load</button>
+      </div>
+      <div id="sessionUrlResult" style="margin-top:8px;font-size:0.8rem;color:#8b949e"></div>
     </div>
   </div>
 </div>
@@ -265,6 +276,30 @@ function copySID() {
 }
 
 function refreshSID() { loadSession(); toast('🔄 Refreshed', '#1f6feb'); }
+
+async function loadSessionFromUrl() {
+  const input = document.getElementById('sessionUrlInput');
+  const result = document.getElementById('sessionUrlResult');
+  const url = (input.value || '').trim();
+  if (!url) { result.textContent = '⚠️ Please enter a URL first.'; result.style.color='#d29922'; return; }
+  result.textContent = '⏳ Loading...'; result.style.color='#8b949e';
+  try {
+    const r = await fetch('/session/url', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ url }) });
+    const d = await r.json();
+    if (d.ok) {
+      result.textContent = '✅ ' + d.message;
+      result.style.color = '#3fb950';
+      toast('✅ Session loaded from URL!', '#238636');
+      setTimeout(loadSession, 2000);
+    } else {
+      result.textContent = '❌ ' + (d.error || 'Unknown error');
+      result.style.color = '#f85149';
+    }
+  } catch(e) {
+    result.textContent = '❌ Network error: ' + e.message;
+    result.style.color = '#f85149';
+  }
+}
 
 // ---- OVERVIEW TAB ----
 async function loadOverview() {
