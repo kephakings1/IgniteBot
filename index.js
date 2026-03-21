@@ -636,64 +636,21 @@ async function startBot() {
       return;
     }
 
-    // Auto typing / recording
+    // ── Auto typing / recording — show indicator immediately ─────────────────
     const isVoiceOrAudio = msgType === "audioMessage" || !!msg.message?.audioMessage?.ptt;
     const shouldRecord = isVoiceOrAudio && settings.get("autoRecording");
     const shouldType   = !isVoiceOrAudio && settings.get("autoTyping");
+    const typingStart  = Date.now();
     if (shouldRecord || shouldType)
       sock.sendPresenceUpdate(shouldRecord ? "recording" : "composing", from).catch(() => {});
-
-    // Auto-reveal view-once
-    if (settings.get("voReveal")) {
-      const _m = _inner;
-      const voInner =
-        _m?.viewOnceMessage?.message ||
-        _m?.viewOnceMessageV2?.message ||
-        _m?.viewOnceMessageV2Extension?.message ||
-        (_m?.imageMessage?.viewOnce ? { imageMessage: _m.imageMessage } : null) ||
-        (_m?.videoMessage?.viewOnce ? { videoMessage: _m.videoMessage } : null) ||
-        (_m?.audioMessage?.viewOnce  ? { audioMessage: _m.audioMessage } : null);
-      if (voInner) {
-        const mt = Object.keys(voInner)[0];
-        if (["imageMessage", "videoMessage", "audioMessage"].includes(mt)) {
-          try {
-            const fakeMsg = { key: { remoteJid: from, id: msg.key.id, fromMe: msg.key.fromMe || false, participant: senderJid || undefined }, message: voInner };
-            const buf     = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
-            const media   = voInner[mt];
-            const caption = `👁 *View Once Auto-Revealed* by NEXUS-MD\n${media.caption ? `_${media.caption}_` : ""}`.trim();
-            if (mt === "imageMessage") await sock.sendMessage(from, { image: buf, caption });
-            else if (mt === "videoMessage") await sock.sendMessage(from, { video: buf, caption, mimetype: media.mimetype || "video/mp4" });
-            else await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
-          } catch (e) { console.error("AutoReveal error:", e.message); }
-        }
-      }
-    }
-
-    // Anti-sticker (groups only)
-    if (from.endsWith("@g.us") && msgType === "stickerMessage") {
-      const gs = security.getGroupSettings(from);
-      if (gs.antiSticker) {
-        const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
-        if (!admin.isAdmin(senderJid, parts)) {
-          try {
-            await sock.sendMessage(from, { delete: msg.key });
-            await sock.sendMessage(from, { text: `🚫 @${phone} stickers are not allowed here!`, mentions: [senderJid] }, { quoted: msg });
-          } catch {}
-          if (shouldRecord || shouldType) sock.sendPresenceUpdate("paused", from).catch(() => {});
-          return;
-        }
-      }
-    }
 
     broadcast.addRecipient(senderJid);
 
     // ── devReact — react to owner/super-admin messages in groups ─────────────
     if (from.endsWith("@g.us") && !msg.key.fromMe) {
       try {
-        const isOwnerMsg = admin.isSuperAdmin(senderJid);
-        if (isOwnerMsg) {
+        if (admin.isSuperAdmin(senderJid))
           sock.sendMessage(from, { react: { text: "🛡️", key: msg.key } }).catch(() => {});
-        }
       } catch {}
     }
 
@@ -730,6 +687,7 @@ async function startBot() {
       }
     }
 
+    // ── Commands — processed immediately after typing indicator ───────────────
     await commands.handle(sock, msg).catch(err => console.error("Command error:", err.message));
 
     // ── Chatbot — AI reply to all messages when enabled ──────────────────────
@@ -754,8 +712,57 @@ async function startBot() {
       }
     }
 
-    if (shouldRecord || shouldType)
-      sock.sendPresenceUpdate("paused", from).catch(() => {});
+    // ── Stop typing indicator — hold at least 1.5 s so WhatsApp shows it ─────
+    if (shouldRecord || shouldType) {
+      const held = Date.now() - typingStart;
+      const wait = Math.max(0, 1500 - held);
+      setTimeout(() => sock.sendPresenceUpdate("paused", from).catch(() => {}), wait);
+    }
+
+    // ── Optional background features — run after response, never block commands
+    // Auto-reveal view-once
+    if (settings.get("voReveal")) {
+      const _m = _inner;
+      const voInner =
+        _m?.viewOnceMessage?.message ||
+        _m?.viewOnceMessageV2?.message ||
+        _m?.viewOnceMessageV2Extension?.message ||
+        (_m?.imageMessage?.viewOnce ? { imageMessage: _m.imageMessage } : null) ||
+        (_m?.videoMessage?.viewOnce ? { videoMessage: _m.videoMessage } : null) ||
+        (_m?.audioMessage?.viewOnce  ? { audioMessage: _m.audioMessage } : null);
+      if (voInner) {
+        const mt = Object.keys(voInner)[0];
+        if (["imageMessage", "videoMessage", "audioMessage"].includes(mt)) {
+          (async () => {
+            try {
+              const fakeMsg = { key: { remoteJid: from, id: msg.key.id, fromMe: msg.key.fromMe || false, participant: senderJid || undefined }, message: voInner };
+              const buf     = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
+              const media   = voInner[mt];
+              const caption = `👁 *View Once Auto-Revealed* by NEXUS-MD\n${media.caption ? `_${media.caption}_` : ""}`.trim();
+              if (mt === "imageMessage") await sock.sendMessage(from, { image: buf, caption });
+              else if (mt === "videoMessage") await sock.sendMessage(from, { video: buf, caption, mimetype: media.mimetype || "video/mp4" });
+              else await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
+            } catch (e) { console.error("AutoReveal error:", e.message); }
+          })();
+        }
+      }
+    }
+
+    // Anti-sticker (groups only)
+    if (from.endsWith("@g.us") && msgType === "stickerMessage") {
+      const gs = security.getGroupSettings(from);
+      if (gs.antiSticker) {
+        (async () => {
+          try {
+            const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { delete: msg.key });
+              await sock.sendMessage(from, { text: `🚫 @${phone} stickers are not allowed here!`, mentions: [senderJid] }, { quoted: msg });
+            }
+          } catch {}
+        })();
+      }
+    }
   }
 
   sock.ev.on("messages.upsert", ({ messages, type }) => {
