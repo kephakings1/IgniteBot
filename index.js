@@ -737,32 +737,79 @@ async function startBot() {
     }
 
     // ── Optional background features — run after response, never block commands
-    // Auto-reveal view-once
-    if (settings.get("voReveal")) {
-      const _m = _inner;
-      const voInner =
-        _m?.viewOnceMessage?.message ||
-        _m?.viewOnceMessageV2?.message ||
-        _m?.viewOnceMessageV2Extension?.message ||
-        (_m?.imageMessage?.viewOnce ? { imageMessage: _m.imageMessage } : null) ||
-        (_m?.videoMessage?.viewOnce ? { videoMessage: _m.videoMessage } : null) ||
-        (_m?.audioMessage?.viewOnce  ? { audioMessage: _m.audioMessage } : null);
-      if (voInner) {
-        const mt = Object.keys(voInner)[0];
-        if (["imageMessage", "videoMessage", "audioMessage"].includes(mt)) {
-          (async () => {
-            try {
-              const fakeMsg = { key: { remoteJid: from, id: msg.key.id, fromMe: msg.key.fromMe || false, participant: senderJid || undefined }, message: voInner };
-              const buf     = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
-              const media   = voInner[mt];
-              const caption = `👁 *View Once Auto-Revealed* by NEXUS-MD\n${media.caption ? `_${media.caption}_` : ""}`.trim();
-              if (mt === "imageMessage") await sock.sendMessage(from, { image: buf, caption });
-              else if (mt === "videoMessage") await sock.sendMessage(from, { video: buf, caption, mimetype: media.mimetype || "video/mp4" });
-              else await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
-            } catch (e) { console.error("AutoReveal error:", e.message); }
-          })();
-        }
-      }
+    // Auto-reveal view-once (voReveal)
+    if (settings.get("voReveal") && !msg.key.fromMe) {
+      (async () => {
+        try {
+          const _m = _inner;
+          // Unwrap all known view-once wrapper types
+          const voInner =
+            _m?.viewOnceMessage?.message ||
+            _m?.viewOnceMessageV2?.message ||
+            _m?.viewOnceMessageV2Extension?.message ||
+            (_m?.imageMessage?.viewOnce ? { imageMessage: _m.imageMessage } : null) ||
+            (_m?.videoMessage?.viewOnce ? { videoMessage: _m.videoMessage } : null) ||
+            (_m?.audioMessage?.viewOnce  ? { audioMessage: _m.audioMessage } : null);
+
+          if (!voInner) return;
+          const mt = Object.keys(voInner)[0];
+          if (!["imageMessage", "videoMessage", "audioMessage"].includes(mt)) return;
+
+          // Download the encrypted media
+          const fakeMsg = {
+            key: { remoteJid: from, id: msg.key.id, fromMe: false, participant: senderJid || undefined },
+            message: voInner,
+          };
+          const buf   = Buffer.from(await downloadMediaMessage(fakeMsg, "buffer", {}));
+          const media = voInner[mt];
+
+          // Build rich caption
+          const tz        = settings.get("timezone") || "Africa/Nairobi";
+          const timeStr   = new Date().toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+          const senderNum = `+${phone}`;
+          const typeLabel = mt === "imageMessage" ? "📷 Photo" : mt === "videoMessage" ? "🎥 Video" : "🎵 Audio";
+          const origCaption = media.caption ? `\n📝 _${media.caption}_` : "";
+          const isGroup = from.endsWith("@g.us");
+          const caption =
+            `👁 *View-Once Revealed* by NEXUS-MD\n` +
+            `${"─".repeat(28)}\n` +
+            `${typeLabel}\n` +
+            `👤 *Sender:* ${senderNum}\n` +
+            `🕐 *Time:* ${timeStr}` +
+            origCaption;
+
+          // 1 — Re-send in the original chat so everyone can see/save it
+          if (mt === "imageMessage")
+            await sock.sendMessage(from, { image: buf, caption });
+          else if (mt === "videoMessage")
+            await sock.sendMessage(from, { video: buf, caption, mimetype: media.mimetype || "video/mp4" });
+          else
+            await sock.sendMessage(from, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false });
+
+          // 2 — In a private DM, also forward the media to every owner so they never miss it
+          if (!isGroup) {
+            const { admins: ownerNums } = require("./config");
+            if (ownerNums?.length) {
+              const ownerDmCaption =
+                `👁 *View-Once Forwarded to You*\n` +
+                `${"─".repeat(28)}\n` +
+                `${typeLabel} from *${senderNum}*\n` +
+                `🕐 *Time:* ${timeStr}` +
+                origCaption;
+              for (const num of ownerNums) {
+                const ownerJid = `${num.replace(/\D/g, "")}@s.whatsapp.net`;
+                if (ownerJid === senderJid) continue; // don't re-send to sender themselves
+                if (mt === "imageMessage")
+                  await sock.sendMessage(ownerJid, { image: buf, caption: ownerDmCaption }).catch(() => {});
+                else if (mt === "videoMessage")
+                  await sock.sendMessage(ownerJid, { video: buf, caption: ownerDmCaption, mimetype: media.mimetype || "video/mp4" }).catch(() => {});
+                else
+                  await sock.sendMessage(ownerJid, { audio: buf, mimetype: media.mimetype || "audio/ogg; codecs=opus", ptt: media.ptt || false }).catch(() => {});
+              }
+            }
+          }
+        } catch (e) { console.error("AutoReveal error:", e.message); }
+      })();
     }
 
     // Anti-sticker (groups only)
