@@ -2,7 +2,7 @@
 
 <img src="https://readme-typing-svg.demolab.com?font=Black+Ops+One&size=48&pause=1000&color=00FF88&center=true&width=900&height=100&lines=⚡+NEXUS-MD;WHATSAPP+BOT+REDEFINED;AI+•+SPEED+•+INTELLIGENCE" alt="NEXUS-MD" />
 
-<img src="assets/banner.gif" width="320" style="border-radius:16px; margin: 12px 0;" />
+<img src="assets/banner.gif" width="100%" style="border-radius:16px; margin: 12px 0;" />
 
 <br/>
 
