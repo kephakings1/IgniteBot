@@ -553,34 +553,8 @@ async function startBot() {
         try { await sock.sendPresenceUpdate("available"); } catch {}
       }, 2000);
 
-      // ── Load local Chella Chant MP3 for menu if not already set ──────────────
-      if (!settings.getMenuSong()) {
-        try {
-          const chellePath = require("path").join(__dirname, "attached_assets", "Chella_-_CHELLA_CHANT_(Official_Visualizer)(MP3_160K)_1773290042660.mp3");
-          const buf = require("fs").readFileSync(chellePath);
-          settings.setMenuSong(buf);
-          console.log("✅ Menu song set: Chella Chant (local MP3)");
-        } catch (err) {
-          console.log("⚠️ Could not load Chella Chant MP3:", err.message);
-        }
-      }
-
-      // ── Pre-generate combined menu video (image + audio) in background ────────
-      const { buildCombinedMenuVideo, getCombinedMenuVideo } = commands;
-      if (!getCombinedMenuVideo()) {
-        const imgBuf  = settings.getMenuImage();
-        const songBuf = settings.getMenuSong();
-        if (imgBuf && songBuf) {
-          setTimeout(async () => {
-            try {
-              await buildCombinedMenuVideo(imgBuf, songBuf);
-              console.log("✅ Menu video pre-generated (image + audio combined)");
-            } catch (e) {
-              console.log("⚠️ Menu video pre-generation failed:", e.message);
-            }
-          }, 4000);
-        }
-      }
+      // Menu song and combined video are generated lazily on first .menu call
+      // to avoid large memory spikes (ffmpeg + media buffers) on startup.
 
       // ── Startup alive message → all super-admins ──────────────────────────
       const { admins: adminNums } = require("./config");
