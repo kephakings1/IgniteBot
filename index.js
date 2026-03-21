@@ -1265,10 +1265,15 @@ async function startBot() {
   });
 }
 
+const { initializeDatabase } = require('./database/config');
+
 db.init()
   .then(async () => {
     // Bootstrap all default settings into the DB so every key is persisted
     settings.initSettings();
+
+    // ── Perez settings table (bot_settings) ────────────────────────────────
+    try { await initializeDatabase(); } catch (e) { console.log('⚠️  Perez DB init:', e.message); }
 
     // ── Session restore priority ────────────────────────────────────────────
     // 1. DB-persisted session (most recent — updated every 10 s while running)
