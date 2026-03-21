@@ -609,10 +609,15 @@ async function startBot() {
     console.log("⚠️  No WhatsApp session — waiting for setup.");
     console.log(`🔗 Visit the dashboard to set up: ${host}/dashboard?tab=setup`);
     console.log(`   Or POST session directly: curl -X POST ${host}/session -H 'Content-Type: application/json' -d '{"session":"<session-id>"}'`);
-  } else {
-    waitingForSession = false;
+    // ── IMPORTANT: return here so we do NOT create a Baileys socket.
+    // Creating a socket without credentials causes a failed WhatsApp connection
+    // attempt that closes immediately, which triggers Heroku's crash/restart loop.
+    // The HTTP server (already listening) keeps the process alive stably.
+    // When the user POSTs a session via /session, startBot() is called again.
+    return;
   }
 
+  waitingForSession = false;
   const { version } = await fetchLatestBaileysVersion();
 
   // Completely silent no-op logger — prevents Baileys printing internal signal state
