@@ -35,6 +35,7 @@ let botStatus = "disconnected";
 let botPhoneNumber = null;
 let sockRef = null;
 let alwaysOnlineInterval = null;
+let sessionPersistInterval = null;   // periodic full auth-folder → DB save
 let currentSessionId = null;
 let reconnectAttempts = 0;
 
@@ -93,10 +94,18 @@ let pairingPhone = null;
 
 function encodeSession() {
   try {
-    const credsPath = path.join(AUTH_FOLDER, "creds.json");
-    if (!fs.existsSync(credsPath)) return null;
-    const creds = fs.readFileSync(credsPath, "utf8");
-    return SESSION_PREFIX + Buffer.from(creds).toString("base64");
+    if (!fs.existsSync(AUTH_FOLDER)) return null;
+    const files = fs.readdirSync(AUTH_FOLDER).filter(f => f.endsWith(".json"));
+    if (!files.length) return null;
+    // Build a multi-file map so ALL signal keys survive a dyno/container restart,
+    // not just creds.json. Missing signal keys cause WhatsApp to force-logout.
+    const map = {};
+    for (const file of files) {
+      const buf = fs.readFileSync(path.join(AUTH_FOLDER, file));
+      map[file] = buf.toString("base64");
+    }
+    if (!map["creds.json"]) return null;
+    return SESSION_PREFIX + Buffer.from(JSON.stringify(map)).toString("base64");
   } catch {
     return null;
   }
@@ -204,7 +213,23 @@ async function restoreSession(sessionId) {
         return await restoreSession(fetched);   // recurse with fetched content
       }
 
-      // Standard NEXUS-MD base64
+      // Try to decode as multi-file map first (new encodeSession() format)
+      try {
+        const decoded = Buffer.from(afterPrefix, "base64").toString("utf8");
+        const parsed  = JSON.parse(decoded);
+        if (typeof parsed === "object" && !Array.isArray(parsed) && parsed["creds.json"]) {
+          // Multi-file map — restore every file
+          for (const [name, content] of Object.entries(parsed)) {
+            const filePath = path.join(AUTH_FOLDER, name);
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            fs.writeFileSync(filePath, Buffer.from(String(content), "base64"));
+          }
+          console.log(`✅ Session restored (NEXUS-MD multi-file, ${Object.keys(parsed).length} files)`);
+          return true;
+        }
+      } catch { /* not a multi-file map — fall through to writeCreds */ }
+
+      // Legacy NEXUS-MD single creds.json
       writeCreds(afterPrefix);
       console.log("✅ Session restored (NEXUS-MD format)");
       return true;
@@ -516,7 +541,8 @@ async function startBot() {
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       botStatus = "disconnected";
       sockRef = null;
-      if (alwaysOnlineInterval) { clearInterval(alwaysOnlineInterval); alwaysOnlineInterval = null; }
+      if (alwaysOnlineInterval)    { clearInterval(alwaysOnlineInterval);    alwaysOnlineInterval    = null; }
+      if (sessionPersistInterval)  { clearInterval(sessionPersistInterval);  sessionPersistInterval  = null; }
       if (shouldReconnect) {
         const delay = reconnectDelay();
         console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
@@ -584,25 +610,41 @@ async function startBot() {
           await sock.sendPresenceUpdate("available").catch(() => {});
         }
       }, 30000);
+
+      // ── Periodic full auth-folder persist every 30 s ────────────────────
+      // Baileys writes signal-key files to disk independently of creds.update.
+      // This timer makes sure ALL of them (pre-keys, session-keys, app-state)
+      // are saved to the DB so a dyno/container restart restores them fully
+      // and WhatsApp does not see a new-device mismatch → logout.
+      if (sessionPersistInterval) clearInterval(sessionPersistInterval);
+      sessionPersistInterval = setInterval(() => {
+        const sid = encodeSession();
+        if (sid) {
+          currentSessionId = sid;
+          try { db.write("_latestSession", { id: sid }); } catch {}
+        }
+      }, 30000);
     }
   });
 
   // Session-save debounce: creds.update fires on every message send/receive.
-  // Batch DB writes to at most once every 10 s to avoid hammering the DB.
+  // Batch DB writes to at most once every 5 s to avoid hammering the DB.
   let _sessionSaveTimer = null;
   sock.ev.on("creds.update", () => {
-    saveCreds();
-    currentSessionId = encodeSession();
+    saveCreds();  // write creds.json to disk immediately
     if (_sessionSaveTimer) clearTimeout(_sessionSaveTimer);
     _sessionSaveTimer = setTimeout(() => {
-      if (currentSessionId) {
+      // Re-encode ALL auth files (not just creds.json) after keys settle
+      const sid = encodeSession();
+      if (sid) {
+        currentSessionId = sid;
         try {
-          db.write("_latestSession", { id: currentSessionId });
+          db.write("_latestSession", { id: sid });
         } catch (e) {
           console.error("⚠️ Could not persist session to DB:", e.message);
         }
       }
-    }, 10000);
+    }, 5000);
   });
 
   // ── Active message processor — runs independently per message ──────────────
