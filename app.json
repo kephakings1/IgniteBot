@@ -24,7 +24,7 @@
       "value": ""
     },
     "APP_URL": {
-      "description": "Your Heroku app's public HTTPS URL (e.g. https://mybot.herokuapp.com). Required to enable the keep-alive self-ping that prevents Eco/Basic dynos from sleeping.",
+      "description": "Auto-detected from your app name — leave blank. Only set this if you use a custom domain (e.g. https://mybot.herokuapp.com).",
       "required": false,
       "value": ""
     },
@@ -48,6 +48,7 @@
       "value": "production"
     }
   },
+  "features": ["dyno-metadata"],
   "buildpacks": [
     {
       "url": "https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git"

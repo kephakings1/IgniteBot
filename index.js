@@ -432,11 +432,16 @@ _server.on("error", (err) => {
 });
 
 // ── Keep-alive self-ping (Heroku / Render Eco dynos sleep after 30 min) ──────
-// Set APP_URL to your app's public URL (e.g. https://mybot.herokuapp.com) to
-// enable automatic pinging so the dyno never idles.
+// APP_URL is auto-detected from HEROKU_APP_NAME (set by dyno-metadata feature)
+// so no manual input is needed. Override with APP_URL env var if needed.
 (function startKeepAlive() {
-  const appUrl = process.env.APP_URL;
-  const plat   = platform.get();
+  // Auto-detect: APP_URL override → HEROKU_APP_NAME (dyno metadata) → disabled
+  const appUrl =
+    process.env.APP_URL ||
+    (process.env.HEROKU_APP_NAME
+      ? `https://${process.env.HEROKU_APP_NAME}.herokuapp.com`
+      : null);
+  const plat = platform.get();
   if (!appUrl || !plat.isSleepy) return;
   const INTERVAL = 14 * 60 * 1000; // 14 minutes
   setInterval(async () => {
