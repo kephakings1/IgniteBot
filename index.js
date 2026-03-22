@@ -1663,6 +1663,21 @@ async function startBot() {
           return;
         }
 
+        // ── .pickupline — send a random pickup line ─────────────────────────
+        if (_cmd === "pickupline") {
+          try {
+            const res = await axios.get("https://api.popcat.xyz/pickuplines", { timeout: 15000 });
+            const line = res.data?.pickupline;
+            if (!line) throw new Error("No pickup line returned");
+            await sock.sendMessage(from, { text: line }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: "❌ An error occurred while fetching the pickup line.",
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .delete / .del — delete a quoted message (group admin only) ───────
         if (_cmd === "delete" || _cmd === "del") {
           if (!from.endsWith("@g.us")) {
@@ -2161,6 +2176,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🚪 *${_mPfx}leave*\n` +
             `║     Bot says goodbye and leaves the group (owner)\n` +
+            `║\n` +
+            `║  ◈ 💘 *${_mPfx}pickupline*\n` +
+            `║     Get a random pickup line\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
