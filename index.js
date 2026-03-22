@@ -1268,10 +1268,20 @@ async function startBot() {
     // ── Built-in command interceptors ─────────────────────────────────────────
     // These always run before the main handler so they work even if the
     // obfuscated commands.js code is broken for these specific commands.
+    // Supports both prefixed (e.g. .play) and prefixless (e.g. play) modes.
     {
-      const _pfx  = settings.get("prefix") || ".";
+      const _pfx        = settings.get("prefix") || ".";
+      const _prefixless = !!settings.get("prefixless");
+
+      // Determine the command+args string regardless of prefix/prefixless mode
+      let _rest = null;
       if (body.startsWith(_pfx)) {
-        const _rest = body.slice(_pfx.length).trim();
+        _rest = body.slice(_pfx.length).trim();
+      } else if (_prefixless) {
+        _rest = body.trim();
+      }
+
+      if (_rest !== null) {
         const _cmd  = _rest.split(/\s+/)[0]?.toLowerCase() || "";
         const _args = _rest.slice(_cmd.length).trim();
 
@@ -1433,6 +1443,32 @@ async function startBot() {
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Failed to save menu video: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .prefixless ────────────────────────────────────────────────────
+        if (_cmd === "prefixless") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const sub = _args.toLowerCase().trim();
+          if (sub === "on") {
+            settings.set("prefixless", true);
+            await sock.sendMessage(from, {
+              text: `✅ *Prefixless mode ON*\n\nCommands now work without the \`${_pfx}\` prefix.\nExample: type \`menu\` instead of \`${_pfx}menu\``,
+            }, { quoted: msg });
+          } else if (sub === "off") {
+            settings.set("prefixless", false);
+            await sock.sendMessage(from, {
+              text: `✅ *Prefixless mode OFF*\n\nCommands now require the \`${_pfx}\` prefix again.`,
+            }, { quoted: msg });
+          } else {
+            const cur = !!settings.get("prefixless");
+            await sock.sendMessage(from, {
+              text: `⚙️ *Prefixless mode*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}prefixless on\` or \`${_pfx}prefixless off\``,
+            }, { quoted: msg });
           }
           return;
         }
