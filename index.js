@@ -3097,103 +3097,243 @@ async function startBot() {
             const _statusStr= botStatus === "connected" ? "Online ✅" : "Offline ❌";
 
             const _menuText =
-              `╭━━━〔 🤖 *${_botName} V2 CORE* 〕━━━╮\n` +
-              `┃ 👤 *User:*  ${_senderNum}\n` +
-              `┃ 👑 *Owner:* ${_ownerStr}\n` +
-              `┃ 🌍 *Mode:* ${_modeStr}\n` +
-              `┃ ⚡ *Prefix:* ${_pfxDisp}\n` +
-              `┃ 🧠 *Version:* 2.0\n` +
-              `┃ ☁️ *Platform:* ${_platName}\n` +
-              `┃ 📡 *Status:* ${_statusStr}\n` +
-              `┃ ⏱ *Uptime:* ${_uptimeStr}\n` +
-              `┃ 💾 *RAM:* ${_ramBar} ${_ramPct}%\n` +
-              `┃ 🧬 *Memory:* ${_heapMB}MB / ${_heapTotMB}MB\n` +
-              `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-              `╭─〔 🧭 *SYSTEM CORE* 〕\n` +
-              `│ ${_pfx}menu  ${_pfx}help  ${_pfx}menuv\n` +
-              `│ ${_pfx}ping  ${_pfx}alive  ${_pfx}stats\n` +
-              `│ ${_pfx}uptime  ${_pfx}time  ${_pfx}date\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🧠 *AI ENGINE* 〕\n` +
-              `│ ${_pfx}ai  ${_pfx}chat  ${_pfx}ask\n` +
-              `│ ${_pfx}imagine  ${_pfx}image  ${_pfx}tts\n` +
-              `│ ${_pfx}summarize  ${_pfx}clearchat\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🔎 *SEARCH HUB* 〕\n` +
-              `│ ${_pfx}weather  ${_pfx}wiki  ${_pfx}define\n` +
-              `│ ${_pfx}tr  ${_pfx}translate  ${_pfx}langs\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 ⚽ *SPORTS CENTER* 〕\n` +
-              `│ ${_pfx}epl  ${_pfx}eplscores  ${_pfx}pl\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🎮 *FUN ZONE* 〕\n` +
-              `│ ${_pfx}8ball  ${_pfx}fact  ${_pfx}flip\n` +
-              `│ ${_pfx}joke  ${_pfx}quote  ${_pfx}roll\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 ✍️ *TEXT LAB* 〕\n` +
-              `│ ${_pfx}aesthetic  ${_pfx}bold  ${_pfx}italic\n` +
-              `│ ${_pfx}mock  ${_pfx}reverse  ${_pfx}emojify\n` +
-              `│ ${_pfx}upper  ${_pfx}lower  ${_pfx}repeat\n` +
-              `│ ${_pfx}calc\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🎵 *MEDIA STATION* 〕\n` +
-              `│ ${_pfx}play  ${_pfx}song  ${_pfx}yt  ${_pfx}audio\n` +
-              `│ ${_pfx}dl  ${_pfx}fbdl  ${_pfx}pindl\n` +
-              `│ ${_pfx}sticker  ${_pfx}convert\n` +
-              `│ ${_pfx}viewonce  ${_pfx}reveal\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🧰 *UTILITIES* 〕\n` +
-              `│ ${_pfx}pp  ${_pfx}qr  ${_pfx}short\n` +
-              `│ ${_pfx}whois  ${_pfx}profile\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 👥 *GROUP CONTROL* 〕\n` +
-              `│ ${_pfx}add  ${_pfx}kick  ${_pfx}kickall\n` +
-              `│ ${_pfx}promote  ${_pfx}demote  ${_pfx}ban\n` +
-              `│ ${_pfx}mute  ${_pfx}unmute  ${_pfx}open  ${_pfx}close\n` +
-              `│ ${_pfx}warn  ${_pfx}warnings  ${_pfx}delete\n` +
-              `│ ${_pfx}leave  ${_pfx}creategroup\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 📊 *GROUP INFO* 〕\n` +
-              `│ ${_pfx}admins  ${_pfx}members  ${_pfx}count\n` +
-              `│ ${_pfx}link  ${_pfx}revoke  ${_pfx}setname\n` +
-              `│ ${_pfx}setdesc  ${_pfx}seticon\n` +
-              `│ ${_pfx}tagall  ${_pfx}hidetag  ${_pfx}poll\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 👋 *WELCOME SYSTEM* 〕\n` +
-              `│ ${_pfx}setwelcome  ${_pfx}setgoodbye\n` +
-              `│ ${_pfx}welcome  ${_pfx}goodbye\n` +
-              `│ ${_pfx}gctime  ${_pfx}antileave\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🚫 *AUTO MODERATION* 〕\n` +
-              `│ ${_pfx}antilink  ${_pfx}antispam  ${_pfx}antiflood\n` +
-              `│ ${_pfx}antisticker  ${_pfx}antidelete\n` +
-              `│ ${_pfx}anticall  ${_pfx}alwaysonline\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 ⚙️ *BOT SETTINGS* 〕\n` +
-              `│ ${_pfx}botsettings  ${_pfx}features\n` +
-              `│ ${_pfx}toggle  ${_pfx}setmode  ${_pfx}mode\n` +
-              `│ ${_pfx}lang  ${_pfx}setprefix  ${_pfx}setbotname\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 🛒 *STORE SYSTEM* 〕\n` +
-              `│ ${_pfx}shop  ${_pfx}order  ${_pfx}myorders\n` +
-              `│ ${_pfx}services  ${_pfx}book  ${_pfx}mybookings\n` +
-              `╰───────────────\n\n` +
-              `╭─〔 👑 *SUPER ADMIN* 〕\n` +
-              `│ ${_pfx}sudo  ${_pfx}sudolist  ${_pfx}broadcast\n` +
-              `│ ${_pfx}pairing  ${_pfx}setmenuimage\n` +
-              `│ ${_pfx}setmenuvideo  ${_pfx}setmenusong\n` +
-              `╰───────────────\n\n` +
-              `╭━━━〔 🚀 *NEXUS TECH* 〕━━━╮\n` +
-              `┃ Power • Speed • Intelligence\n` +
-              `┃ AI Powered WhatsApp System\n` +
-              `╰━━━━━━━━━━━━━━━━━━━━╯`;
+              `╔══════════════════════════════╗\n` +
+              `        🤖 *${_botName} V2 CORE*\n` +
+              `╚══════════════════════════════╝\n\n` +
+              `⟡ 👤 *User*     :: ~•~ ༺〄 ${_senderNum}★༻\n` +
+              `⟡ 👑 *Owner*    :: ${_ownerStr}\n` +
+              `⟡ 🌐 *Mode*     :: ${_modeStr}\n` +
+              `⟡ ⚡ *Prefix*   :: ${_pfxDisp}\n` +
+              `⟡ 🧠 *Version*  :: 2.0\n` +
+              `⟡ ☁ *Platform* :: ${_platName}\n` +
+              `⟡ 📡 *Status*   :: ${_statusStr}\n` +
+              `⟡ ⏱ *Uptime*   :: ${_uptimeStr}\n` +
+              `⟡ 💾 *RAM*      :: ${_ramBar} ${_ramPct}%\n` +
+              `⟡ 🧬 *Memory*   :: ${_heapMB}MB / ${_heapTotMB}MB\n\n` +
+              `╭━━━〔 ⚙️ *SYSTEM CORE* 〕━━━⬣\n` +
+              `┃ ⌬ ${_pfx}menu\n` +
+              `┃ ⌬ ${_pfx}help\n` +
+              `┃ ⌬ ${_pfx}menuv\n` +
+              `┃ ⌬ ${_pfx}ping\n` +
+              `┃ ⌬ ${_pfx}alive\n` +
+              `┃ ⌬ ${_pfx}stats\n` +
+              `┃ ⌬ ${_pfx}uptime\n` +
+              `┃ ⌬ ${_pfx}time\n` +
+              `┃ ⌬ ${_pfx}date\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🧠 *AI ENGINE* 〕━━━⬣\n` +
+              `┃ ◈ ${_pfx}ai\n` +
+              `┃ ◈ ${_pfx}chat\n` +
+              `┃ ◈ ${_pfx}ask\n` +
+              `┃ ◈ ${_pfx}imagine\n` +
+              `┃ ◈ ${_pfx}image\n` +
+              `┃ ◈ ${_pfx}tts\n` +
+              `┃ ◈ ${_pfx}summarize\n` +
+              `┃ ◈ ${_pfx}summary\n` +
+              `┃ ◈ ${_pfx}clearchat\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🔎 *SEARCH HUB* 〕━━━⬣\n` +
+              `┃ ⧉ ${_pfx}weather\n` +
+              `┃ ⧉ ${_pfx}wiki\n` +
+              `┃ ⧉ ${_pfx}wikipedia\n` +
+              `┃ ⧉ ${_pfx}define\n` +
+              `┃ ⧉ ${_pfx}dict\n` +
+              `┃ ⧉ ${_pfx}tr\n` +
+              `┃ ⧉ ${_pfx}translate\n` +
+              `┃ ⧉ ${_pfx}langs\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 ⚽ *SPORTS CENTER* 〕━━━⬣\n` +
+              `┃ ⚡ ${_pfx}epl\n` +
+              `┃ ⚡ ${_pfx}eplscores\n` +
+              `┃ ⚡ ${_pfx}premierleague\n` +
+              `┃ ⚡ ${_pfx}pl\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🎮 *FUN ZONE* 〕━━━⬣\n` +
+              `┃ ✦ ${_pfx}8ball\n` +
+              `┃ ✦ ${_pfx}fact\n` +
+              `┃ ✦ ${_pfx}flip\n` +
+              `┃ ✦ ${_pfx}joke\n` +
+              `┃ ✦ ${_pfx}quote\n` +
+              `┃ ✦ ${_pfx}inspire\n` +
+              `┃ ✦ ${_pfx}roll\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 ✍️ *TEXT LAB* 〕━━━⬣\n` +
+              `┃ ⌘ ${_pfx}aesthetic\n` +
+              `┃ ⌘ ${_pfx}ae\n` +
+              `┃ ⌘ ${_pfx}bold\n` +
+              `┃ ⌘ ${_pfx}italic\n` +
+              `┃ ⌘ ${_pfx}mock\n` +
+              `┃ ⌘ ${_pfx}reverse\n` +
+              `┃ ⌘ ${_pfx}emojify\n` +
+              `┃ ⌘ ${_pfx}emoji\n` +
+              `┃ ⌘ ${_pfx}upper\n` +
+              `┃ ⌘ ${_pfx}lower\n` +
+              `┃ ⌘ ${_pfx}repeat\n` +
+              `┃ ⌘ ${_pfx}calc\n` +
+              `┃ ⌘ ${_pfx}calculate\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🎧 *MEDIA STATION* 〕━━━⬣\n` +
+              `┃ ▶ ${_pfx}play\n` +
+              `┃ ▶ ${_pfx}song\n` +
+              `┃ ▶ ${_pfx}p\n` +
+              `┃ ▶ ${_pfx}yt\n` +
+              `┃ ▶ ${_pfx}ytdl\n` +
+              `┃ ▶ ${_pfx}audio\n` +
+              `┃ ▶ ${_pfx}music\n` +
+              `┃ ▶ ${_pfx}dl\n` +
+              `┃ ▶ ${_pfx}download\n` +
+              `┃ ▶ ${_pfx}fbdl\n` +
+              `┃ ▶ ${_pfx}facebook\n` +
+              `┃ ▶ ${_pfx}pindl\n` +
+              `┃ ▶ ${_pfx}pinterest\n` +
+              `┃ ▶ ${_pfx}sticker\n` +
+              `┃ ▶ ${_pfx}s\n` +
+              `┃ ▶ ${_pfx}convert\n` +
+              `┃ ▶ ${_pfx}v\n` +
+              `┃ ▶ ${_pfx}vo\n` +
+              `┃ ▶ ${_pfx}viewonce\n` +
+              `┃ ▶ ${_pfx}reveal\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🧰 *UTILITIES* 〕━━━⬣\n` +
+              `┃ ◉ ${_pfx}pp\n` +
+              `┃ ◉ ${_pfx}pfp\n` +
+              `┃ ◉ ${_pfx}getpp\n` +
+              `┃ ◉ ${_pfx}qr\n` +
+              `┃ ◉ ${_pfx}short\n` +
+              `┃ ◉ ${_pfx}shorten\n` +
+              `┃ ◉ ${_pfx}whois\n` +
+              `┃ ◉ ${_pfx}profile\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 👥 *GROUP CONTROL* 〕━━━⬣\n` +
+              `┃ ⛨ ${_pfx}add\n` +
+              `┃ ⛨ ${_pfx}kick\n` +
+              `┃ ⛨ ${_pfx}kickall\n` +
+              `┃ ⛨ ${_pfx}promote\n` +
+              `┃ ⛨ ${_pfx}promoteall\n` +
+              `┃ ⛨ ${_pfx}demote\n` +
+              `┃ ⛨ ${_pfx}demoteall\n` +
+              `┃ ⛨ ${_pfx}ban\n` +
+              `┃ ⛨ ${_pfx}unban\n` +
+              `┃ ⛨ ${_pfx}clearbanlist\n` +
+              `┃ ⛨ ${_pfx}mute\n` +
+              `┃ ⛨ ${_pfx}unmute\n` +
+              `┃ ⛨ ${_pfx}open\n` +
+              `┃ ⛨ ${_pfx}close\n` +
+              `┃ ⛨ ${_pfx}warn\n` +
+              `┃ ⛨ ${_pfx}resetwarn\n` +
+              `┃ ⛨ ${_pfx}setwarn\n` +
+              `┃ ⛨ ${_pfx}warnings\n` +
+              `┃ ⛨ ${_pfx}delete\n` +
+              `┃ ⛨ ${_pfx}leave\n` +
+              `┃ ⛨ ${_pfx}creategroup\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 📊 *GROUP INFO* 〕━━━⬣\n` +
+              `┃ ⧗ ${_pfx}admins\n` +
+              `┃ ⧗ ${_pfx}members\n` +
+              `┃ ⧗ ${_pfx}count\n` +
+              `┃ ⧗ ${_pfx}groupinfo\n` +
+              `┃ ⧗ ${_pfx}link\n` +
+              `┃ ⧗ ${_pfx}invitelink\n` +
+              `┃ ⧗ ${_pfx}revoke\n` +
+              `┃ ⧗ ${_pfx}resetlink\n` +
+              `┃ ⧗ ${_pfx}glink\n` +
+              `┃ ⧗ ${_pfx}grouplink\n` +
+              `┃ ⧗ ${_pfx}setname\n` +
+              `┃ ⧗ ${_pfx}rename\n` +
+              `┃ ⧗ ${_pfx}setdesc\n` +
+              `┃ ⧗ ${_pfx}desc\n` +
+              `┃ ⧗ ${_pfx}seticon\n` +
+              `┃ ⧗ ${_pfx}setgrouppp\n` +
+              `┃ ⧗ ${_pfx}everyone\n` +
+              `┃ ⧗ ${_pfx}tagall\n` +
+              `┃ ⧗ ${_pfx}hidetag\n` +
+              `┃ ⧗ ${_pfx}htag\n` +
+              `┃ ⧗ ${_pfx}stag\n` +
+              `┃ ⧗ ${_pfx}poll\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🤖 *AUTO MODERATION* 〕━━━⬣\n` +
+              `┃ ⛔ ${_pfx}antilink\n` +
+              `┃ ⛔ ${_pfx}antispam\n` +
+              `┃ ⛔ ${_pfx}antiflood\n` +
+              `┃ ⛔ ${_pfx}antilongtext\n` +
+              `┃ ⛔ ${_pfx}settextlimit\n` +
+              `┃ ⛔ ${_pfx}antimention\n` +
+              `┃ ⛔ ${_pfx}antitag\n` +
+              `┃ ⛔ ${_pfx}antisticker\n` +
+              `┃ ⛔ ${_pfx}antidelete\n` +
+              `┃ ⛔ ${_pfx}anticall\n` +
+              `┃ ⛔ ${_pfx}alwaysonline\n` +
+              `┃ ⛔ ${_pfx}voreveal\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 ⚙ *BOT SETTINGS* 〕━━━⬣\n` +
+              `┃ ⚙ ${_pfx}botsettings\n` +
+              `┃ ⚙ ${_pfx}features\n` +
+              `┃ ⚙ ${_pfx}featurelist\n` +
+              `┃ ⚙ ${_pfx}feature\n` +
+              `┃ ⚙ ${_pfx}toggle\n` +
+              `┃ ⚙ ${_pfx}setmode\n` +
+              `┃ ⚙ ${_pfx}mode\n` +
+              `┃ ⚙ ${_pfx}lang\n` +
+              `┃ ⚙ ${_pfx}setprefix\n` +
+              `┃ ⚙ ${_pfx}prefixless\n` +
+              `┃ ⚙ ${_pfx}setowner\n` +
+              `┃ ⚙ ${_pfx}setownername\n` +
+              `┃ ⚙ ${_pfx}setbotname\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 🛒 *STORE SYSTEM* 〕━━━⬣\n` +
+              `┃ 🧾 ${_pfx}shop\n` +
+              `┃ 🧾 ${_pfx}catalog\n` +
+              `┃ 🧾 ${_pfx}order\n` +
+              `┃ 🧾 ${_pfx}myorders\n` +
+              `┃ 🧾 ${_pfx}services\n` +
+              `┃ 🧾 ${_pfx}book\n` +
+              `┃ 🧾 ${_pfx}mybookings\n` +
+              `┃ 🧾 ${_pfx}cancel\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 👑 *SUPER ADMIN* 〕━━━⬣\n` +
+              `┃ ☣ ${_pfx}sudo\n` +
+              `┃ ☣ ${_pfx}removesudo\n` +
+              `┃ ☣ ${_pfx}unsudo\n` +
+              `┃ ☣ ${_pfx}sudolist\n` +
+              `┃ ☣ ${_pfx}broadcast\n` +
+              `┃ ☣ ${_pfx}pairing\n` +
+              `┃ ☣ ${_pfx}setmenuimage\n` +
+              `┃ ☣ ${_pfx}clearmenuimage\n` +
+              `┃ ☣ ${_pfx}setmenuvideo\n` +
+              `┃ ☣ ${_pfx}clearmenuvideo\n` +
+              `┃ ☣ ${_pfx}setmenusong\n` +
+              `┃ ☣ ${_pfx}clearmenusong\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `┏━━━━━━━━━━━━━━━━━━━━━━┓\n` +
+              `  ⚡ *NEXUS TECH SYSTEM*\n` +
+              `  🔹 Power • Speed • AI\n` +
+              `┗━━━━━━━━━━━━━━━━━━━━━━┛`;
 
-            // Send banner GIF/video first, then the menu text caption
-            const _menuVidBuf  = settings.getMenuVideo();
+            // Send menu song FIRST, then gif/video + menu text caption
+            const _menuSongBuf = settings.getMenuSong();
+            if (_menuSongBuf) {
+              await sock.sendMessage(from, {
+                audio:    _menuSongBuf,
+                mimetype: "audio/mpeg",
+                ptt:      false,
+              }, { quoted: msg }).catch(() => {});
+            } else {
+              // Fallback: bundled Rick Astley mp3 as menu song
+              const _rickPath = path.join(process.cwd(), "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) [dQw4w9WgXcQ].mp3");
+              if (fs.existsSync(_rickPath)) {
+                await sock.sendMessage(from, {
+                  audio:    fs.readFileSync(_rickPath),
+                  mimetype: "audio/mpeg",
+                  ptt:      false,
+                }, { quoted: msg }).catch(() => {});
+              }
+            }
+
+            // Send gif/video + menu text
+            const _menuVidBuf    = settings.getMenuVideo();
             const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
             const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
             if (_menuVidBuf) {
-              // Custom user-set video (mp4)
               await sock.sendMessage(from, {
                 video:       _menuVidBuf,
                 caption:     _menuText,
@@ -3201,7 +3341,6 @@ async function startBot() {
                 mimetype:    "video/mp4",
               }, { quoted: msg });
             } else if (fs.existsSync(_menuMp4Path)) {
-              // Default bundled menu.mp4 as animated GIF playback
               await sock.sendMessage(from, {
                 video:       fs.readFileSync(_menuMp4Path),
                 caption:     _menuText,
@@ -3209,25 +3348,13 @@ async function startBot() {
                 mimetype:    "video/mp4",
               }, { quoted: msg });
             } else if (fs.existsSync(_bannerGifPath)) {
-              // Fallback: banner.gif sent as GIF
               await sock.sendMessage(from, {
                 video:       fs.readFileSync(_bannerGifPath),
                 caption:     _menuText,
                 gifPlayback: true,
               }, { quoted: msg });
             } else {
-              // No media — text only
               await sock.sendMessage(from, { text: _menuText }, { quoted: msg });
-            }
-
-            // Also send the menu song if one is set
-            const _menuSongBuf = settings.getMenuSong();
-            if (_menuSongBuf) {
-              await sock.sendMessage(from, {
-                audio:    _menuSongBuf,
-                mimetype: "audio/mpeg",
-                ptt:      false,
-              }).catch(() => {});
             }
           } catch (_menuErr) {
             console.error("[menu] error:", _menuErr.message);
