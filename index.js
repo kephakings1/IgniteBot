@@ -9,6 +9,8 @@ const {
   makeCacheableSignalKeyStore,
   isJidBroadcast,
   downloadMediaMessage,
+  normalizeMessageContent,
+  getContentType,
 } = require("@whiskeysockets/baileys");
 const express = require("express");
 const fs = require("fs");
@@ -631,7 +633,7 @@ process.on("unhandledRejection", (err) => {
 
 // ── Global console filter — suppress libsignal / Baileys decryption noise ──
 const _SIGNAL_NOISE = /Bad MAC|decrypt|session_cipher|libsignal|Session error|queue_job|Closing session|SessionEntry|chainKey|indexInfo|registrationId|ephemeralKey|ECONNREFUSED.*5432/i;
-for (const method of ["log", "warn", "error", "debug", "trace"]) {
+for (const method of ["log", "warn", "error", "debug", "trace", "info"]) {
   const _orig = console[method].bind(console);
   console[method] = (...args) => {
     const text = args.map(a => (typeof a === "string" ? a : (a instanceof Error ? a.message : JSON.stringify(a) ?? ""))).join(" ");
@@ -648,6 +650,17 @@ function reconnectDelay() {
   const delay = Math.min(base * Math.pow(2, reconnectAttempts), max);
   reconnectAttempts++;
   return delay;
+}
+
+// Simple in-memory message cache so Baileys can retry failed decryptions
+const _msgCache = new Map();
+function _cacheMsg(msg) {
+  if (!msg?.key?.id || !msg.message) return;
+  _msgCache.set(msg.key.id, msg.message);
+  if (_msgCache.size > 1000) {
+    const oldest = _msgCache.keys().next().value;
+    _msgCache.delete(oldest);
+  }
 }
 
 async function startBot() {
@@ -710,7 +723,9 @@ async function startBot() {
     shouldIgnoreJid: (jid) => isJidBroadcast(jid) && jid !== "status@broadcast",
     markOnlineOnConnect: true,
     retryRequestDelayMs: 2000,
-    getMessage: async () => undefined,
+    getMessage: async (key) => {
+      return _msgCache.get(key.id) || undefined;
+    },
   });
 
   sockRef = sock;
@@ -855,17 +870,32 @@ async function startBot() {
     const from      = msg.key.remoteJid;
     const senderJid = msg.key.participant || from;
 
-    // Resolve body with full ephemeral / button / list unwrapping
-    const _inner  = msg.message?.ephemeralMessage?.message || msg.message || {};
+    // Keep the shallow-unwrapped inner for viewOnce/media checks (only strips ephemeral)
+    const _inner = msg.message?.ephemeralMessage?.message || msg.message || {};
+    // Use Baileys v7 normalizeMessageContent to fully unwrap ALL wrapper types
+    // (ephemeral, viewOnce, deviceSent, documentWithCaption, etc.) for body extraction
+    const _normalized = normalizeMessageContent(msg.message) || {};
     const body    =
+      _normalized.conversation ||
+      _normalized.extendedTextMessage?.text ||
       _inner.conversation ||
       _inner.extendedTextMessage?.text ||
+      _normalized.imageMessage?.caption ||
       _inner.imageMessage?.caption ||
+      _normalized.videoMessage?.caption ||
       _inner.videoMessage?.caption ||
       _inner.buttonsResponseMessage?.selectedDisplayText ||
       _inner.listResponseMessage?.title ||
-      _inner.templateButtonReplyMessage?.selectedDisplayText || "";
-    const msgType = Object.keys(msg.message || {})[0] || "unknown";
+      _inner.templateButtonReplyMessage?.selectedDisplayText ||
+      _normalized.documentMessage?.caption ||
+      "";
+    const msgType = getContentType(_normalized) || getContentType(_inner) || Object.keys(msg.message || {})[0] || "unknown";
+
+    // Attach extracted body and helper fields so the command handler can use them
+    msg.body     = body;
+    msg.from     = from;
+    msg.sender   = senderJid;
+    msg.isGroup  = from.endsWith("@g.us");
     const phone   = senderJid.split("@")[0].split(":")[0];
     const prefix  = settings.get("prefix") || ".";
 
@@ -1155,6 +1185,9 @@ async function startBot() {
 
     for (const msg of messages) {
       if (!msg.message) continue;
+
+      // Cache for getMessage (enables Baileys to retry failed decryptions)
+      _cacheMsg(msg);
 
       const from      = msg.key.remoteJid;
       const senderJid = msg.key.participant || from;
