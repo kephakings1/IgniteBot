@@ -1663,6 +1663,107 @@ async function startBot() {
           return;
         }
 
+        // ── .add — add member(s) to the group ──────────────────────────────
+        if (_cmd === "add") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `❌ Provide number(s) to add.\n\nExample: \`${_pfx}add 254108098259\`\nMultiple: \`${_pfx}add 254108098259, 254700000000\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to add members." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+
+            const existingJids = parts.map(p => p.id);
+            // Parse numbers from comma-separated input
+            const numbers = _args.split(",")
+              .map(v => v.replace(/[^0-9]/g, "").trim())
+              .filter(v => v.length > 4 && v.length < 20 && !existingJids.includes(v + "@s.whatsapp.net"));
+
+            if (!numbers.length) {
+              await sock.sendMessage(from, { text: "❌ No valid new numbers found to add." }, { quoted: msg });
+              return;
+            }
+
+            // Verify each number is on WhatsApp
+            const checked = await Promise.all(
+              numbers.map(async n => {
+                const res = await sock.onWhatsApp(n + "@s.whatsapp.net").catch(() => []);
+                return { number: n, exists: res?.[0]?.exists };
+              })
+            );
+            const toAdd = checked.filter(c => c.exists).map(c => c.number + "@s.whatsapp.net");
+            const notFound = checked.filter(c => !c.exists).map(c => c.number);
+
+            if (notFound.length) {
+              await sock.sendMessage(from, {
+                text: `⚠️ Not on WhatsApp: ${notFound.map(n => `+${n}`).join(", ")}`,
+              }, { quoted: msg });
+            }
+            if (!toAdd.length) return;
+
+            const meta       = await sock.groupMetadata(from).catch(() => null);
+            const groupName  = meta?.subject || "this group";
+            const inviteCode = await sock.groupInviteCode(from).catch(() => null);
+            const inviteLink = inviteCode ? `https://chat.whatsapp.com/${inviteCode}` : "";
+            const senderName = msg.pushName || phone;
+            const botName    = settings.get("botName") || "NEXUS-MD";
+
+            // Attempt the add and collect per-participant results
+            const results = await sock.groupParticipantsUpdate(from, toAdd, "add").catch(e => {
+              throw new Error(`Add failed: ${e.message}`);
+            });
+
+            for (const result of results) {
+              const jid    = result.jid;
+              const num    = jid.split("@")[0];
+              const status = Number(result.status);
+
+              if (status === 200) {
+                await sock.sendMessage(from, {
+                  text: `✅ @${num} has been added to the group.`,
+                  mentions: [jid],
+                }, { quoted: msg });
+              } else {
+                let reason;
+                if (status === 401) reason = `@${num} has blocked the bot.`;
+                else if (status === 403) reason = `@${num} has restricted who can add them to groups.`;
+                else if (status === 408) reason = `@${num} recently left the group.`;
+                else if (status === 409) reason = `@${num} is already in the group.`;
+                else reason = `@${num} could not be added (error ${status}).`;
+
+                await sock.sendMessage(from, {
+                  text: reason,
+                  mentions: [jid],
+                }, { quoted: msg });
+
+                // Send invite link DM for privacy/blocked errors
+                if ((status === 403 || status === 408 || status === 401) && inviteLink) {
+                  const dm = `*${senderName}* is trying to add you to *${groupName}*:\n\n${inviteLink}\n\n_${botName}_ 💠`;
+                  await sock.sendMessage(jid, { text: dm }, { quoted: msg }).catch(() => {});
+                }
+              }
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .upload / .url — upload quoted media to catbox and return link ──
         if (_cmd === "upload" || _cmd === "url") {
           const quotedMsg  = msg.quoted?.message || null;
@@ -2231,6 +2332,10 @@ async function startBot() {
             `║\n` +
             `║  ◈ 📤 *${_mPfx}upload / ${_mPfx}url*\n` +
             `║     Reply to image/video to upload to catbox.moe\n` +
+            `║\n` +
+            `║  ◈ ➕ *${_mPfx}add <number(s)>*\n` +
+            `║     Add member(s) to the group (group admin only)\n` +
+            `║     Comma-separate for multiple numbers\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
