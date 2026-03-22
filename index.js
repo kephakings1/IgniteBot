@@ -3,7 +3,6 @@ process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "8";
 
 const {
   default: makeWASocket,
-  Browsers,
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
@@ -715,7 +714,16 @@ async function startBot() {
   }
 
   waitingForSession = false;
-  const { version } = await fetchLatestBaileysVersion();
+  // Fetch the current WA version. Fall back to a known-good version so the
+  // bot can still connect even if the network request to WA's API fails.
+  let version;
+  try {
+    const vRes = await fetchLatestBaileysVersion();
+    version = vRes.version;
+  } catch {
+    version = [2, 3000, 1023597560];
+    console.warn("[WA] Could not fetch latest version — using built-in fallback:", version);
+  }
 
   // Completely silent no-op logger — prevents Baileys printing internal signal state
   const noop = () => {};
@@ -725,9 +733,6 @@ async function startBot() {
   const sock = makeWASocket({
     version,
     logger,
-    // Mimic a real WhatsApp Web client so WA servers don't flag the connection.
-    // Without this, Baileys uses its own name which WA's fraud detection picks up.
-    browser: Browsers.ubuntu("Chrome"),
     // Show QR in terminal on panels/VPS; cloud platforms use web pairing UI
     printQRInTerminal: plat.printQR || !!process.env.PRINT_QR,
     auth: {
