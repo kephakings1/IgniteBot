@@ -52,6 +52,6 @@
     "yt-search": "^2.13.1"
   },
   "devDependencies": {
-    "javascript-obfuscator": "^5.3.1"
+    "javascript-obfuscator": "^5.4.1"
   }
 }
