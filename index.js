@@ -1588,8 +1588,15 @@ async function startBot() {
           const fSub    = (parts[1] || "").toLowerCase();
           const fKey    = _featureMap[fName];
           if (!fKey) {
+            // Show only one representative name per unique setting key (dedup aliases)
+            const _seen = new Set();
             const list = Object.keys(_featureMap)
-              .filter((k, i, a) => a.indexOf(k) === i)
+              .filter(k => {
+                const v = _featureMap[k];
+                if (_seen.has(v)) return false;
+                _seen.add(v);
+                return true;
+              })
               .join(", ");
             await sock.sendMessage(from, {
               text: `❓ Unknown feature.\n\nAvailable: \`${list}\`\n\nUsage: \`${_pfx}feature autoview on\``,
