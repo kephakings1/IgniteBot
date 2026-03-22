@@ -1383,8 +1383,8 @@ async function startBot() {
           return;
         }
 
-        // ── .play / .song ──────────────────────────────────────────────────
-        if (_cmd === "play" || _cmd === "song") {
+        // ── .play ──────────────────────────────────────────────────────────
+        if (_cmd === "play") {
           const query = _args.trim();
           if (!query) {
             await sock.sendMessage(from, { text: `🎵 Usage: \`${_pfx}${_cmd} <song name or YouTube URL>\`` }, { quoted: msg });
@@ -1416,6 +1416,52 @@ async function startBot() {
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .song / .music — download via noobs-api.top ────────────────────
+        if (_cmd === "song" || _cmd === "music") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `🎵 Usage: \`${_pfx}${_cmd} <song name>\``,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, {
+            text: `_Please wait, your download is in progress..._`,
+          }, { quoted: msg });
+          try {
+            const yts = require("yt-search");
+            const search = await yts(query);
+            const video  = search.videos[0];
+            if (!video) {
+              await sock.sendMessage(from, {
+                text: "❌ No results found for your query.",
+              }, { quoted: msg });
+              return;
+            }
+            const safeTitle = video.title.replace(/[\\/:*?"<>|]/g, "");
+            const fileName  = `${safeTitle}.mp3`;
+            const apiURL    = `https://noobs-api.top/dipto/ytDl3?link=${encodeURIComponent(video.videoId)}&format=mp3`;
+            const response  = await axios.get(apiURL, { timeout: 60000 });
+            const data      = response.data;
+            if (!data?.downloadLink) {
+              await sock.sendMessage(from, {
+                text: "❌ Failed to retrieve the MP3 download link.",
+              }, { quoted: msg });
+              return;
+            }
+            await sock.sendMessage(from, {
+              audio:    { url: data.downloadLink },
+              mimetype: "audio/mpeg",
+              fileName,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ An error occurred while processing your request: ${e.message}`,
+            }, { quoted: msg });
           }
           return;
         }
@@ -1820,6 +1866,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🎵 *${_mPfx}play2 <song name>*\n` +
             `║     Download audio as file + playable audio\n` +
+            `║\n` +
+            `║  ◈ 🎶 *${_mPfx}song / ${_mPfx}music <song name>*\n` +
+            `║     Download audio via noobs-api (playable)\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
