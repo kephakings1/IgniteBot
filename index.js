@@ -1663,6 +1663,78 @@ async function startBot() {
           return;
         }
 
+        // ── .pinterest / .pin — download Pinterest image or video ──────────
+        if (_cmd === "pinterest" || _cmd === "pin") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `📌 Usage: \`${_pfx}${_cmd} <pin.it link>\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (!_args.includes("pin.it")) {
+            await sock.sendMessage(from, {
+              text: "❌ That is not a valid Pinterest link.",
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { react: { text: "🔄", key: msg.key } });
+          try {
+            const res = await axios.get(
+              `https://bk9.fun/download/pinterest?url=${encodeURIComponent(_args.trim())}`,
+              { timeout: 20000 }
+            );
+            if (!res.data?.status) {
+              await sock.sendMessage(from, { text: "❌ Unable to fetch Pinterest data." }, { quoted: msg });
+              return;
+            }
+            const media    = res.data.BK9 || [];
+            const caption  = `*DOWNLOADED BY NEXUS BOT*`;
+            if (!media.length) {
+              await sock.sendMessage(from, { text: "❌ No media found." }, { quoted: msg });
+              return;
+            }
+            const videoUrl = media.find(item => item.url?.includes(".mp4"))?.url;
+            const imageUrl = media.find(item => item.url?.includes(".jpg") || item.url?.includes(".jpeg") || item.url?.includes(".png"))?.url;
+            if (videoUrl) {
+              await sock.sendMessage(from, { video: { url: videoUrl }, caption }, { quoted: msg });
+            } else if (imageUrl) {
+              await sock.sendMessage(from, { image: { url: imageUrl }, caption }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, { text: "❌ No downloadable media found." }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { react: { text: "❌", key: msg.key } });
+            await sock.sendMessage(from, { text: `❌ An error occurred: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .close / .mute — lock group to admins only ──────────────────────
+        if (_cmd === "close" || _cmd === "mute") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to lock the group." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            await sock.groupSettingUpdate(from, "announcement");
+            await sock.sendMessage(from, { text: "🔒 Group successfully locked! Only admins can send messages." }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to lock group: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .tts / .say — text-to-speech via Google TTS ────────────────────
         if (_cmd === "tts" || _cmd === "say") {
           if (!_args.trim()) {
@@ -2367,6 +2439,12 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🔊 *${_mPfx}tts / ${_mPfx}say <text>*\n` +
             `║     Convert text to a Hindi voice note\n` +
+            `║\n` +
+            `║  ◈ 📌 *${_mPfx}pinterest / ${_mPfx}pin <link>*\n` +
+            `║     Download image or video from a pin.it link\n` +
+            `║\n` +
+            `║  ◈ 🔒 *${_mPfx}close / ${_mPfx}mute*\n` +
+            `║     Lock group — only admins can send messages\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
