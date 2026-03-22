@@ -3084,74 +3084,123 @@ async function startBot() {
       const _mCmd = (_mRest || "").split(/\s+/)[0]?.toLowerCase() || "";
       const _mIsOwner = msg.key.fromMe === true || admin.isSuperAdmin(senderJid);
       if (_mCmd === "menu" && _mIsOwner) {
-        const _p = _mPfx;
         await sock.sendMessage(from, {
           text:
-            `╔══════════════════════════════════╗\n` +
-            `║  ⚡ *ɴᴇxᴜs-ᴍᴅ*  ›  ᴄᴏᴍᴍᴀɴᴅ ᴄᴇɴᴛᴇʀ  ⚡  ║\n` +
-            `╚══════════════════════════════════╝\n` +
-            `\n` +
-            `┌──「 🛡️ *ꜱᴇᴄᴜʀɪᴛʏ* 」──────────────────\n` +
-            `│ ⟡ *${_p}block*  ›  Block a contact (reply/mention)\n` +
-            `│ ⟡ *${_p}unblock*  ›  Unblock a contact\n` +
-            `│ ⟡ *${_p}enc*  ›  Obfuscate / encrypt JS code\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 🎵 *ᴍᴇᴅɪᴀ & ᴅᴏᴡɴʟᴏᴀᴅꜱ* 」──────────\n` +
-            `│ ⟡ *${_p}play2* <song>  ›  Audio file + voice\n` +
-            `│ ⟡ *${_p}song* / *${_p}music* <song>  ›  Playable audio\n` +
-            `│ ⟡ *${_p}apk* / *${_p}app* <name>  ›  Download APK\n` +
-            `│ ⟡ *${_p}lyrics* <song>  ›  Lyrics + album art\n` +
-            `│ ⟡ *${_p}sticker* / *${_p}s*  ›  Quote → sticker\n` +
-            `│ ⟡ *${_p}tiktok* / *${_p}tikdl* <link>  ›  TikTok video\n` +
-            `│ ⟡ *${_p}pinterest* / *${_p}pin* <link>  ›  Pin media\n` +
-            `│ ⟡ *${_p}upload* / *${_p}url*  ›  Upload to catbox.moe\n` +
-            `│ ⟡ *${_p}save*  ›  Save WA status to DM  ᴏᴡɴᴇʀ\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 🤖 *ᴀɪ & ᴜᴛɪʟɪᴛɪᴇꜱ* 」─────────────\n` +
-            `│ ⟡ *${_p}velma* <q>  ›  Llama AI chatbot\n` +
-            `│ ⟡ *${_p}tts* / *${_p}say* <text>  ›  Text-to-speech\n` +
-            `│ ⟡ *${_p}screenshot* / *${_p}ss* <url>  ›  Web screenshot\n` +
-            `│ ⟡ *${_p}inspect* <url>  ›  Crawl HTML·CSS·JS·media\n` +
-            `│ ⟡ *${_p}inbox* <email>  ›  Fetch temp-mail inbox\n` +
-            `│ ⟡ *${_p}hacker2*  ›  Hacker overlay on image\n` +
-            `│ ⟡ *${_p}pickupline*  ›  Random pickup line\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 👤 *ᴘʀᴏꜰɪʟᴇ* 」──────────────────\n` +
-            `│ ⟡ *${_p}dp*  ›  Get a user's profile photo\n` +
-            `│ ⟡ *${_p}fullpp*  ›  Set bot profile pic  ᴏᴡɴᴇʀ\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 ⚽ *ꜱᴘᴏʀᴛꜱ* 」───────────────────\n` +
-            `│ ⟡ *${_p}epl* / *${_p}epl-table*  ›  Premier League\n` +
-            `│ ⟡ *${_p}bundesliga* / *${_p}bl-table*  ›  Bundesliga\n` +
-            `│ ⟡ *${_p}laliga* / *${_p}pd-table*  ›  La Liga\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 👥 *ɢʀᴏᴜᴘ ᴍᴀɴᴀɢᴇᴍᴇɴᴛ* 」──────────\n` +
-            `│ ⟡ *${_p}add* <num,…>  ›  Add member(s)\n` +
-            `│ ⟡ *${_p}remove* / *${_p}kick*  ›  Remove member\n` +
-            `│ ⟡ *${_p}promote*  ›  Promote to admin\n` +
-            `│ ⟡ *${_p}demote*  ›  Demote from admin\n` +
-            `│ ⟡ *${_p}admin*  ›  Self-promote  ᴏᴡɴᴇʀ\n` +
-            `│ ⟡ *${_p}approve* / *${_p}approve-all*  ›  Approve joins\n` +
-            `│ ⟡ *${_p}reject* / *${_p}reject-all*  ›  Reject joins\n` +
-            `│ ⟡ *${_p}close* / *${_p}mute*  ›  Lock group\n` +
-            `│ ⟡ *${_p}disp-1* / *${_p}disp-7*  ›  Disappearing msgs\n` +
-            `│ ⟡ *${_p}icon*  ›  Set group profile photo\n` +
-            `│ ⟡ *${_p}delete* / *${_p}del*  ›  Delete quoted msg\n` +
-            `│ ⟡ *${_p}leave*  ›  Bot exits group  ᴏᴡɴᴇʀ\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `┌──「 ⚙️ *ꜱᴇᴛᴛɪɴɢꜱ* 」──────────────────\n` +
-            `│ ⟡ *${_p}list* / *${_p}vars*  ›  Full command list\n` +
-            `└──────────────────────────────────\n` +
-            `\n` +
-            `╔══════════════════════════════════╗\n` +
-            `║   💠 *ɴᴇxᴜs-ᴍᴅ*  ›  ꜱᴛᴀʏ ᴅᴏᴍɪɴᴀɴᴛ  💠   ║\n` +
-            `╚══════════════════════════════════╝`,
+            `╔═══「 🔒 *ᴏᴡɴᴇʀ ᴄᴏᴍᴍᴀɴᴅꜱ* 🔒 」═══╗\n` +
+            `║\n` +
+            `║  ◈ 🚫 *${_mPfx}block*\n` +
+            `║     Reply to / mention a user to block them\n` +
+            `║\n` +
+            `║  ◈ ✅ *${_mPfx}unblock*\n` +
+            `║     Reply to / mention a user to unblock them\n` +
+            `║\n` +
+            `║  ◈ 🔐 *${_mPfx}enc*\n` +
+            `║     Reply to JS code to obfuscate/encrypt it\n` +
+            `║\n` +
+            `║  ◈ 🎵 *${_mPfx}play2 <song name>*\n` +
+            `║     Download audio as file + playable audio\n` +
+            `║\n` +
+            `║  ◈ 🎶 *${_mPfx}song / ${_mPfx}music <song name>*\n` +
+            `║     Download audio via noobs-api (playable)\n` +
+            `║\n` +
+            `║  ◈ 📱 *${_mPfx}apk / ${_mPfx}app <app name>*\n` +
+            `║     Search and download an Android APK\n` +
+            `║\n` +
+            `║  ◈ 🎤 *${_mPfx}lyrics <song name>*\n` +
+            `║     Fetch lyrics with album art thumbnail\n` +
+            `║\n` +
+            `║  ◈ 🎭 *${_mPfx}sticker / ${_mPfx}s*\n` +
+            `║     Quote image/video to convert to sticker\n` +
+            `║\n` +
+            `║  ◈ 📸 *${_mPfx}dp*\n` +
+            `║     Reply to a user to get their profile picture\n` +
+            `║\n` +
+            `║  ◈ 📋 *${_mPfx}list / ${_mPfx}vars*\n` +
+            `║     Show the full command list\n` +
+            `║\n` +
+            `║  ◈ 🗑️ *${_mPfx}delete / ${_mPfx}del*\n` +
+            `║     Reply to a message to delete it (group admins)\n` +
+            `║\n` +
+            `║  ◈ 🚪 *${_mPfx}leave*\n` +
+            `║     Bot says goodbye and leaves the group (owner)\n` +
+            `║\n` +
+            `║  ◈ 💘 *${_mPfx}pickupline*\n` +
+            `║     Get a random pickup line\n` +
+            `║\n` +
+            `║  ◈ 📤 *${_mPfx}upload / ${_mPfx}url*\n` +
+            `║     Reply to image/video to upload to catbox.moe\n` +
+            `║\n` +
+            `║  ◈ ➕ *${_mPfx}add <number(s)>*\n` +
+            `║     Add member(s) to the group (group admin only)\n` +
+            `║     Comma-separate for multiple numbers\n` +
+            `║\n` +
+            `║  ◈ 🔊 *${_mPfx}tts / ${_mPfx}say <text>*\n` +
+            `║     Convert text to a Hindi voice note\n` +
+            `║\n` +
+            `║  ◈ 📌 *${_mPfx}pinterest / ${_mPfx}pin <link>*\n` +
+            `║     Download image or video from a pin.it link\n` +
+            `║\n` +
+            `║  ◈ 🔒 *${_mPfx}close / ${_mPfx}mute*\n` +
+            `║     Lock group — only admins can send messages\n` +
+            `║\n` +
+            `║  ◈ 📬 *${_mPfx}inbox <email>*\n` +
+            `║     Fetch messages from a temp-mail inbox\n` +
+            `║\n` +
+            `║  ◈ 💾 *${_mPfx}save*\n` +
+            `║     Reply to a status to save it to your DM (owner)\n` +
+            `║\n` +
+            `║  ◈ 🤖 *${_mPfx}velma <question>*\n` +
+            `║     Chat with Velma AI (Llama-powered)\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}epl / ${_mPfx}epl-table*\n` +
+            `║     Show current Premier League standings\n` +
+            `║\n` +
+            `║  ◈ 🖥️ *${_mPfx}hacker2*\n` +
+            `║     Apply hacker effect to a quoted image\n` +
+            `║\n` +
+            `║  ◈ 📸 *${_mPfx}screenshot / ${_mPfx}ss <url>*\n` +
+            `║     Take a full-page screenshot of any website\n` +
+            `║\n` +
+            `║  ◈ 🖼️ *${_mPfx}fullpp*\n` +
+            `║     Set bot profile picture from quoted image (owner)\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}bundesliga / ${_mPfx}bl-table*\n` +
+            `║     Show current Bundesliga standings\n` +
+            `║\n` +
+            `║  ◈ 🚫 *${_mPfx}remove / ${_mPfx}kick*\n` +
+            `║     Remove a member (mention or reply) — group admins\n` +
+            `║\n` +
+            `║  ◈ 🔍 *${_mPfx}inspect <url>*\n` +
+            `║     Crawl a website: HTML, CSS, JS and media files\n` +
+            `║\n` +
+            `║  ◈ 🎵 *${_mPfx}tiktok / ${_mPfx}tikdl <link>*\n` +
+            `║     Download a TikTok video\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}laliga / ${_mPfx}pd-table*\n` +
+            `║     Show current La Liga standings\n` +
+            `║\n` +
+            `║  ◈ ⏱️ *${_mPfx}disp-1 / ${_mPfx}disp-7*\n` +
+            `║     Disappearing messages: 24 hrs / 7 days (admins)\n` +
+            `║\n` +
+            `║  ◈ ⬆️ *${_mPfx}promote*\n` +
+            `║     Promote a member to admin (mention or reply)\n` +
+            `║\n` +
+            `║  ◈ ⬇️ *${_mPfx}demote*\n` +
+            `║     Demote an admin to member (mention or reply)\n` +
+            `║\n` +
+            `║  ◈ 🖼️ *${_mPfx}icon*\n` +
+            `║     Set group profile picture from quoted image\n` +
+            `║\n` +
+            `║  ◈ ✅ *${_mPfx}approve / ${_mPfx}approve-all*\n` +
+            `║     Approve all pending group join requests\n` +
+            `║\n` +
+            `║  ◈ 🚫 *${_mPfx}reject / ${_mPfx}reject-all*\n` +
+            `║     Reject all pending group join requests\n` +
+            `║\n` +
+            `║  ◈ 🥇 *${_mPfx}admin*\n` +
+            `║     Promote yourself to group admin (owner only)\n` +
+            `║\n` +
+            `╚════════════════════════════════╝`,
         }, { quoted: msg });
       }
     }
