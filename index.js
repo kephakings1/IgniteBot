@@ -1663,6 +1663,323 @@ async function startBot() {
           return;
         }
 
+        // ── .inspect — crawl a website: HTML, CSS, JS, media ────────────────
+        if (_cmd === "inspect") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `🔍 Usage: \`${_pfx}inspect <url>\`\n\nCrawls the page and returns its HTML, CSS, JS and media links.`,
+            }, { quoted: msg });
+            return;
+          }
+          if (!/^https?:\/\//i.test(_args.trim())) {
+            await sock.sendMessage(from, {
+              text: "❌ Please provide a URL starting with http:// or https://",
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const cheerio  = require("cheerio");
+            const nodeFetch = require("node-fetch");
+            const pageUrl   = _args.trim();
+            const res       = await nodeFetch(pageUrl, { timeout: 20000 });
+            const html      = await res.text();
+            const $         = cheerio.load(html);
+
+            const media = [];
+            $("img[src], video[src], audio[src]").each((_, el) => {
+              const src = $(el).attr("src");
+              if (src) media.push(src);
+            });
+            const cssFiles = [];
+            $('link[rel="stylesheet"]').each((_, el) => {
+              const href = $(el).attr("href");
+              if (href) cssFiles.push(href);
+            });
+            const jsFiles = [];
+            $("script[src]").each((_, el) => {
+              const src = $(el).attr("src");
+              if (src) jsFiles.push(src);
+            });
+
+            // Send HTML (trim to avoid huge messages)
+            const htmlSnippet = html.length > 4000 ? html.slice(0, 4000) + "\n...[truncated]" : html;
+            await sock.sendMessage(from, { text: `*Full HTML Content:*\n\n${htmlSnippet}` }, { quoted: msg });
+
+            // Send CSS content
+            if (cssFiles.length) {
+              for (const file of cssFiles.slice(0, 3)) {
+                try {
+                  const cssRes  = await nodeFetch(new URL(file, pageUrl).href, { timeout: 10000 });
+                  const cssText = await cssRes.text();
+                  const snippet = cssText.length > 3000 ? cssText.slice(0, 3000) + "\n...[truncated]" : cssText;
+                  await sock.sendMessage(from, { text: `*CSS: ${file}*\n\n${snippet}` }, { quoted: msg });
+                } catch {}
+              }
+            } else {
+              await sock.sendMessage(from, { text: "ℹ️ No external CSS files found." }, { quoted: msg });
+            }
+
+            // Send JS content
+            if (jsFiles.length) {
+              for (const file of jsFiles.slice(0, 3)) {
+                try {
+                  const jsRes  = await nodeFetch(new URL(file, pageUrl).href, { timeout: 10000 });
+                  const jsText = await jsRes.text();
+                  const snippet = jsText.length > 3000 ? jsText.slice(0, 3000) + "\n...[truncated]" : jsText;
+                  await sock.sendMessage(from, { text: `*JS: ${file}*\n\n${snippet}` }, { quoted: msg });
+                } catch {}
+              }
+            } else {
+              await sock.sendMessage(from, { text: "ℹ️ No external JavaScript files found." }, { quoted: msg });
+            }
+
+            // Media links
+            if (media.length) {
+              await sock.sendMessage(from, {
+                text: `*Media Files Found:*\n${media.slice(0, 20).join("\n")}`,
+              }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, { text: "ℹ️ No media files found." }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to inspect site: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .tiktok / .tikdl — download TikTok video ─────────────────────────
+        if (_cmd === "tiktok" || _cmd === "tikdl") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `🎵 Usage: \`${_pfx}${_cmd} <tiktok link>\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (!_args.includes("tiktok.com")) {
+            await sock.sendMessage(from, { text: "❌ That is not a valid TikTok link." }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "⏳ Data fetched! Downloading your video, please wait..." }, { quoted: msg });
+          try {
+            let data = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              const res = await axios.get(
+                `https://api.dreaded.site/api/tiktok?url=${encodeURIComponent(_args.trim())}`,
+                { timeout: 20000 }
+              );
+              if (res.data?.status === 200 && res.data?.tiktok?.video) {
+                data = res.data.tiktok;
+                break;
+              }
+            }
+            if (!data) throw new Error("Failed to fetch TikTok data after multiple attempts.");
+            const videoUrl   = data.video;
+            const desc       = data.description || "No description";
+            const author     = data.author?.nickname || "Unknown";
+            const likes      = data.statistics?.likeCount || "0";
+            const comments   = data.statistics?.commentCount || "0";
+            const shares     = data.statistics?.shareCount || "0";
+            const caption    = `🎥 *TikTok Video*\n\n📌 *Description:* ${desc}\n👤 *Author:* ${author}\n❤️ *Likes:* ${likes}\n💬 *Comments:* ${comments}\n🔗 *Shares:* ${shares}`;
+            const vidRes     = await axios.get(videoUrl, { responseType: "arraybuffer", timeout: 60000 });
+            const videoBuf   = Buffer.from(vidRes.data);
+            await sock.sendMessage(from, {
+              video: videoBuf,
+              mimetype: "video/mp4",
+              caption,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ TikTok download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .laliga / .pd-table — La Liga standings ───────────────────────────
+        if (_cmd === "laliga" || _cmd === "pd-table") {
+          try {
+            const res = await axios.get("https://api.dreaded.site/api/standings/PD", { timeout: 15000 });
+            const standings = res.data?.data;
+            if (!standings) throw new Error("No data returned");
+            await sock.sendMessage(from, {
+              text: `*Current La Liga Table Standings:*\n\n${standings}`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: "❌ Unable to fetch La Liga standings. Please try again.",
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .disp-1 — disappearing messages 24 hours ──────────────────────────
+        if (_cmd === "disp-1") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            await sock.groupToggleEphemeral(from, 1 * 24 * 3600);
+            await sock.sendMessage(from, {
+              text: "⏱️ Disappearing messages turned on for *24 hours*!",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .disp-7 — disappearing messages 7 days ────────────────────────────
+        if (_cmd === "disp-7") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin for this." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            await sock.groupToggleEphemeral(from, 7 * 24 * 3600);
+            await sock.sendMessage(from, {
+              text: "⏱️ Disappearing messages turned on for *7 days*!",
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .promote — promote member to admin ────────────────────────────────
+        if (_cmd === "promote") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to promote members." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            const mentioned = msg.mentionedJids?.[0];
+            const target    = mentioned || msg.quoted?.sender || null;
+            if (!target) {
+              await sock.sendMessage(from, {
+                text: "❌ Mention or reply to the member you want to promote.",
+              }, { quoted: msg });
+              return;
+            }
+            const targetClean = target.replace(/:\d+@/, "@s.whatsapp.net");
+            await sock.groupParticipantsUpdate(from, [targetClean], "promote");
+            await sock.sendMessage(from, {
+              text: `✅ @${targetClean.split("@")[0]} has been promoted to admin! 🦄`,
+              mentions: [targetClean],
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to promote: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .demote — demote admin to member ──────────────────────────────────
+        if (_cmd === "demote") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to demote members." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            const mentioned = msg.mentionedJids?.[0];
+            const target    = mentioned || msg.quoted?.sender || null;
+            if (!target) {
+              await sock.sendMessage(from, {
+                text: "❌ Mention or reply to the admin you want to demote.",
+              }, { quoted: msg });
+              return;
+            }
+            const targetClean = target.replace(/:\d+@/, "@s.whatsapp.net");
+            await sock.groupParticipantsUpdate(from, [targetClean], "demote");
+            await sock.sendMessage(from, {
+              text: `😲 @${targetClean.split("@")[0]} has been demoted successfully!`,
+              mentions: [targetClean],
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to demote: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .icon — set group profile picture from quoted image ───────────────
+        if (_cmd === "icon") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts  = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to change the icon." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            const qMsg  = msg.quoted?.message || null;
+            const qType = qMsg ? Object.keys(qMsg)[0] : null;
+            if (!qMsg || qType !== "imageMessage" || qMsg[qType]?.mimetype?.includes("webp")) {
+              await sock.sendMessage(from, {
+                text: `❌ Reply to a JPG/PNG image with \`${_pfx}icon\` to set the group icon.`,
+              }, { quoted: msg });
+              return;
+            }
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: qMsg },
+              "buffer", {}
+            );
+            await sock.updateProfilePicture(from, mediaBuf);
+            await sock.sendMessage(from, { text: "✅ Group icon updated!" }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to update group icon: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .screenshot / .ss — website screenshot via thum.io ─────────────
         if (_cmd === "screenshot" || _cmd === "ss") {
           if (!_args.trim()) {
@@ -2752,6 +3069,27 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🚫 *${_mPfx}remove / ${_mPfx}kick*\n` +
             `║     Remove a member (mention or reply) — group admins\n` +
+            `║\n` +
+            `║  ◈ 🔍 *${_mPfx}inspect <url>*\n` +
+            `║     Crawl a website: HTML, CSS, JS and media files\n` +
+            `║\n` +
+            `║  ◈ 🎵 *${_mPfx}tiktok / ${_mPfx}tikdl <link>*\n` +
+            `║     Download a TikTok video\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}laliga / ${_mPfx}pd-table*\n` +
+            `║     Show current La Liga standings\n` +
+            `║\n` +
+            `║  ◈ ⏱️ *${_mPfx}disp-1 / ${_mPfx}disp-7*\n` +
+            `║     Disappearing messages: 24 hrs / 7 days (admins)\n` +
+            `║\n` +
+            `║  ◈ ⬆️ *${_mPfx}promote*\n` +
+            `║     Promote a member to admin (mention or reply)\n` +
+            `║\n` +
+            `║  ◈ ⬇️ *${_mPfx}demote*\n` +
+            `║     Demote an admin to member (mention or reply)\n` +
+            `║\n` +
+            `║  ◈ 🖼️ *${_mPfx}icon*\n` +
+            `║     Set group profile picture from quoted image\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
