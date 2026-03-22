@@ -28,6 +28,11 @@
       "required": true,
       "value": ""
     },
+    "SESSION_ID": {
+      "description": "Your WhatsApp session ID. Get one for free at https://nexs-session-1.replit.app — paste the full NEXUS-MD:~... string here.",
+      "required": true,
+      "value": ""
+    },
     "DATABASE_URL": {
       "description": "PostgreSQL connection string — automatically filled in by the Heroku Postgres add-on above. Leave this blank.",
       "required": false,
