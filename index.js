@@ -3066,6 +3066,174 @@ async function startBot() {
           }
           return;
         }
+
+        // ── .menu / .menuv / .help — redesigned NEXUS V2 CORE menu ──────────
+        if (_cmd === "menu" || _cmd === "menuv" || _cmd === "help") {
+          try {
+            const _os       = require("os");
+            const _mem      = process.memoryUsage();
+            const _totalRam = _os.totalmem();
+            const _usedRam  = _totalRam - _os.freemem();
+            const _ramPct   = Math.round((_usedRam / _totalRam) * 100);
+            const _barLen   = 10;
+            const _filled   = Math.round((_ramPct / 100) * _barLen);
+            const _ramBar   = "█".repeat(_filled) + "░".repeat(_barLen - _filled);
+            const _heapMB   = (_mem.heapUsed / 1024 / 1024).toFixed(1);
+            const _heapTotMB= (_mem.heapTotal / 1024 / 1024).toFixed(1);
+            const _uptimeSec= Math.floor(process.uptime());
+            const _uh       = Math.floor(_uptimeSec / 3600);
+            const _um       = Math.floor((_uptimeSec % 3600) / 60);
+            const _us       = _uptimeSec % 60;
+            const _uptimeStr= `${_uh}h ${_um}m ${_us}s`;
+            const _botMode  = settings.get("mode") || "public";
+            const _modeStr  = _botMode.charAt(0).toUpperCase() + _botMode.slice(1);
+            const _pfxDisp  = `[${_pfx}]`;
+            const _platInfo = platform.get();
+            const _platName = _platInfo.name || "Replit";
+            const _botName  = settings.get("botName") || "NEXUS-MD";
+            const _senderNum= phone ? `+${phone}` : senderJid.split("@")[0];
+            const _ownerNums= (require("./config").admins || []);
+            const _ownerStr = _ownerNums.length ? `+${_ownerNums[0]}` : "Nexus Tech";
+            const _statusStr= botStatus === "connected" ? "Online ✅" : "Offline ❌";
+
+            const _menuText =
+              `╭━━━〔 🤖 *${_botName} V2 CORE* 〕━━━╮\n` +
+              `┃ 👤 *User:*  ${_senderNum}\n` +
+              `┃ 👑 *Owner:* ${_ownerStr}\n` +
+              `┃ 🌍 *Mode:* ${_modeStr}\n` +
+              `┃ ⚡ *Prefix:* ${_pfxDisp}\n` +
+              `┃ 🧠 *Version:* 2.0\n` +
+              `┃ ☁️ *Platform:* ${_platName}\n` +
+              `┃ 📡 *Status:* ${_statusStr}\n` +
+              `┃ ⏱ *Uptime:* ${_uptimeStr}\n` +
+              `┃ 💾 *RAM:* ${_ramBar} ${_ramPct}%\n` +
+              `┃ 🧬 *Memory:* ${_heapMB}MB / ${_heapTotMB}MB\n` +
+              `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
+              `╭─〔 🧭 *SYSTEM CORE* 〕\n` +
+              `│ ${_pfx}menu  ${_pfx}help  ${_pfx}menuv\n` +
+              `│ ${_pfx}ping  ${_pfx}alive  ${_pfx}stats\n` +
+              `│ ${_pfx}uptime  ${_pfx}time  ${_pfx}date\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🧠 *AI ENGINE* 〕\n` +
+              `│ ${_pfx}ai  ${_pfx}chat  ${_pfx}ask\n` +
+              `│ ${_pfx}imagine  ${_pfx}image  ${_pfx}tts\n` +
+              `│ ${_pfx}summarize  ${_pfx}clearchat\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🔎 *SEARCH HUB* 〕\n` +
+              `│ ${_pfx}weather  ${_pfx}wiki  ${_pfx}define\n` +
+              `│ ${_pfx}tr  ${_pfx}translate  ${_pfx}langs\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 ⚽ *SPORTS CENTER* 〕\n` +
+              `│ ${_pfx}epl  ${_pfx}eplscores  ${_pfx}pl\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🎮 *FUN ZONE* 〕\n` +
+              `│ ${_pfx}8ball  ${_pfx}fact  ${_pfx}flip\n` +
+              `│ ${_pfx}joke  ${_pfx}quote  ${_pfx}roll\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 ✍️ *TEXT LAB* 〕\n` +
+              `│ ${_pfx}aesthetic  ${_pfx}bold  ${_pfx}italic\n` +
+              `│ ${_pfx}mock  ${_pfx}reverse  ${_pfx}emojify\n` +
+              `│ ${_pfx}upper  ${_pfx}lower  ${_pfx}repeat\n` +
+              `│ ${_pfx}calc\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🎵 *MEDIA STATION* 〕\n` +
+              `│ ${_pfx}play  ${_pfx}song  ${_pfx}yt  ${_pfx}audio\n` +
+              `│ ${_pfx}dl  ${_pfx}fbdl  ${_pfx}pindl\n` +
+              `│ ${_pfx}sticker  ${_pfx}convert\n` +
+              `│ ${_pfx}viewonce  ${_pfx}reveal\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🧰 *UTILITIES* 〕\n` +
+              `│ ${_pfx}pp  ${_pfx}qr  ${_pfx}short\n` +
+              `│ ${_pfx}whois  ${_pfx}profile\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 👥 *GROUP CONTROL* 〕\n` +
+              `│ ${_pfx}add  ${_pfx}kick  ${_pfx}kickall\n` +
+              `│ ${_pfx}promote  ${_pfx}demote  ${_pfx}ban\n` +
+              `│ ${_pfx}mute  ${_pfx}unmute  ${_pfx}open  ${_pfx}close\n` +
+              `│ ${_pfx}warn  ${_pfx}warnings  ${_pfx}delete\n` +
+              `│ ${_pfx}leave  ${_pfx}creategroup\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 📊 *GROUP INFO* 〕\n` +
+              `│ ${_pfx}admins  ${_pfx}members  ${_pfx}count\n` +
+              `│ ${_pfx}link  ${_pfx}revoke  ${_pfx}setname\n` +
+              `│ ${_pfx}setdesc  ${_pfx}seticon\n` +
+              `│ ${_pfx}tagall  ${_pfx}hidetag  ${_pfx}poll\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 👋 *WELCOME SYSTEM* 〕\n` +
+              `│ ${_pfx}setwelcome  ${_pfx}setgoodbye\n` +
+              `│ ${_pfx}welcome  ${_pfx}goodbye\n` +
+              `│ ${_pfx}gctime  ${_pfx}antileave\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🚫 *AUTO MODERATION* 〕\n` +
+              `│ ${_pfx}antilink  ${_pfx}antispam  ${_pfx}antiflood\n` +
+              `│ ${_pfx}antisticker  ${_pfx}antidelete\n` +
+              `│ ${_pfx}anticall  ${_pfx}alwaysonline\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 ⚙️ *BOT SETTINGS* 〕\n` +
+              `│ ${_pfx}botsettings  ${_pfx}features\n` +
+              `│ ${_pfx}toggle  ${_pfx}setmode  ${_pfx}mode\n` +
+              `│ ${_pfx}lang  ${_pfx}setprefix  ${_pfx}setbotname\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 🛒 *STORE SYSTEM* 〕\n` +
+              `│ ${_pfx}shop  ${_pfx}order  ${_pfx}myorders\n` +
+              `│ ${_pfx}services  ${_pfx}book  ${_pfx}mybookings\n` +
+              `╰───────────────\n\n` +
+              `╭─〔 👑 *SUPER ADMIN* 〕\n` +
+              `│ ${_pfx}sudo  ${_pfx}sudolist  ${_pfx}broadcast\n` +
+              `│ ${_pfx}pairing  ${_pfx}setmenuimage\n` +
+              `│ ${_pfx}setmenuvideo  ${_pfx}setmenusong\n` +
+              `╰───────────────\n\n` +
+              `╭━━━〔 🚀 *NEXUS TECH* 〕━━━╮\n` +
+              `┃ Power • Speed • Intelligence\n` +
+              `┃ AI Powered WhatsApp System\n` +
+              `╰━━━━━━━━━━━━━━━━━━━━╯`;
+
+            // Send banner GIF/video first, then the menu text caption
+            const _menuVidBuf  = settings.getMenuVideo();
+            const _bannerGifPath = path.join(process.cwd(), "assets", "banner.gif");
+            const _menuMp4Path   = path.join(process.cwd(), "assets", "menu.mp4");
+            if (_menuVidBuf) {
+              // Custom user-set video (mp4)
+              await sock.sendMessage(from, {
+                video:       _menuVidBuf,
+                caption:     _menuText,
+                gifPlayback: true,
+                mimetype:    "video/mp4",
+              }, { quoted: msg });
+            } else if (fs.existsSync(_menuMp4Path)) {
+              // Default bundled menu.mp4 as animated GIF playback
+              await sock.sendMessage(from, {
+                video:       fs.readFileSync(_menuMp4Path),
+                caption:     _menuText,
+                gifPlayback: true,
+                mimetype:    "video/mp4",
+              }, { quoted: msg });
+            } else if (fs.existsSync(_bannerGifPath)) {
+              // Fallback: banner.gif sent as GIF
+              await sock.sendMessage(from, {
+                video:       fs.readFileSync(_bannerGifPath),
+                caption:     _menuText,
+                gifPlayback: true,
+              }, { quoted: msg });
+            } else {
+              // No media — text only
+              await sock.sendMessage(from, { text: _menuText }, { quoted: msg });
+            }
+
+            // Also send the menu song if one is set
+            const _menuSongBuf = settings.getMenuSong();
+            if (_menuSongBuf) {
+              await sock.sendMessage(from, {
+                audio:    _menuSongBuf,
+                mimetype: "audio/mpeg",
+                ptt:      false,
+              }).catch(() => {});
+            }
+          } catch (_menuErr) {
+            console.error("[menu] error:", _menuErr.message);
+          }
+          return;
+        }
       }
     }
     // ── End built-in interceptors ─────────────────────────────────────────────
