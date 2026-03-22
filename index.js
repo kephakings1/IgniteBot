@@ -1080,7 +1080,9 @@ async function startBot() {
     msg.pushName        = msg.pushName || "";
     msg.mtype           = msgType;
 
+    // Clean phone number: strip both @domain AND :device-suffix (multi-device JIDs carry :X)
     const phone   = senderJid.split("@")[0].split(":")[0];
+    msg.phone     = phone;  // expose on msg so commands always get the stripped number
     const prefix  = settings.get("prefix") || ".";
 
     console.log(`[MSG] from=${phone} type=${msgType} fromMe=${msg.key.fromMe} body="${body.slice(0, 60)}"`);
@@ -1382,7 +1384,7 @@ async function startBot() {
             const parts = await admin.getGroupParticipants(sock, from).catch(() => []);
             if (!admin.isAdmin(senderJid, parts)) {
               await sock.sendMessage(from, { delete: msg.key });
-              await sock.sendMessage(from, { text: `🚫 @${phone} stickers are not allowed here!`, mentions: [senderJid] }, { quoted: msg });
+              await sock.sendMessage(from, { text: `🚫 @${phone} stickers are not allowed here!`, mentions: [`${phone}@s.whatsapp.net`] }, { quoted: msg });
             }
           } catch {}
         })();
@@ -1479,14 +1481,15 @@ async function startBot() {
           (async () => {
             try {
               const meta      = await sock.groupMetadata(id);
-              const member    = meta.participants.find(x => x.id === memberJid);
-              const name      = member?.notify || memberJid.split("@")[0];
-              const cardBuf   = await premium.generateWelcomeCard(name, meta.subject);
+              const member       = meta.participants.find(x => x.id === memberJid);
+              const memberBase   = `${memberJid.split("@")[0].split(":")[0]}@s.whatsapp.net`;
+              const name         = member?.notify || memberJid.split("@")[0].split(":")[0];
+              const cardBuf      = await premium.generateWelcomeCard(name, meta.subject);
               if (cardBuf) {
                 await sock.sendMessage(id, {
                   image:   cardBuf,
                   caption: `🎉 Welcome *${name}* to *${meta.subject}*! 🎊\n\n_Enjoy your stay — NEXUS-MD ⚡_`,
-                  mentions: [memberJid],
+                  mentions: [memberBase],
                 });
               }
             } catch (e) {
@@ -1503,7 +1506,8 @@ async function startBot() {
           const jid = normalizeJid(p);
           try {
             await sock.groupParticipantsUpdate(id, [jid], "add");
-            await sock.sendMessage(id, { text: `🚪 Anti-leave: @${jid.split("@")[0]} was re-added.`, mentions: [jid] });
+            const _baseJid = `${jid.split("@")[0].split(":")[0]}@s.whatsapp.net`;
+            await sock.sendMessage(id, { text: `🚪 Anti-leave: @${jid.split("@")[0].split(":")[0]} was re-added.`, mentions: [_baseJid] });
           } catch (e) {
             console.log(`[ANTI-LEAVE] Could not re-add ${jid}: ${e.message}`);
           }
@@ -1617,7 +1621,7 @@ async function startBot() {
         const cached = security.getCachedStatus(key.id);
         if (!cached) continue;
         const original    = cached.msg;
-        const ownerPhone  = (key.participant || original.key?.participant || "?").split("@")[0];
+        const ownerPhone  = (key.participant || original.key?.participant || "?").split("@")[0].split(":")[0];
         if (ownerDM) {
           await sendRecovered(ownerDM, `Deleted Status — @${ownerPhone}`, original, ownerPhone, null);
         }
@@ -1632,7 +1636,7 @@ async function startBot() {
         const cached = security.getCachedMessage(key.id);
         if (!cached) continue;
         const original    = cached.msg;
-        const senderPhone = (key.participant || original.key?.participant || "?").split("@")[0];
+        const senderPhone = (key.participant || original.key?.participant || "?").split("@")[0].split(":")[0];
         const deleterJid  = key.participant || null;
         const label       = `Anti-Delete | Group`;
 
@@ -1655,7 +1659,7 @@ async function startBot() {
         const cached = security.getCachedMessage(key.id);
         if (!cached) continue;
         const original    = cached.msg;
-        const senderPhone = (key.remoteJid || "?").split("@")[0];
+        const senderPhone = (key.remoteJid || "?").split("@")[0].split(":")[0];
         const label       = `Anti-Delete | Chat`;
 
         // 1. Send to owner DM
