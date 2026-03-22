@@ -1447,6 +1447,102 @@ async function startBot() {
           return;
         }
 
+        // ── .autoview ──────────────────────────────────────────────────────
+        if (_cmd === "autoview" || _cmd === "autoviewstatus") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const sub = _args.toLowerCase().trim();
+          if (sub === "on" || sub === "off") {
+            settings.set("autoViewStatus", sub === "on");
+            await sock.sendMessage(from, {
+              text: `✅ *Auto View Status* is now *${sub.toUpperCase()}*`,
+            }, { quoted: msg });
+          } else {
+            const cur = !!settings.get("autoViewStatus");
+            await sock.sendMessage(from, {
+              text: `👁 *Auto View Status*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}autoview on\` or \`${_pfx}autoview off\``,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .autoreact / .autolike ─────────────────────────────────────────
+        if (_cmd === "autoreact" || _cmd === "autolike" || _cmd === "autolikestatus") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const sub = _args.toLowerCase().trim();
+          if (sub === "on" || sub === "off") {
+            settings.set("autoLikeStatus", sub === "on");
+            await sock.sendMessage(from, {
+              text: `✅ *Auto React/Like Status* is now *${sub.toUpperCase()}*`,
+            }, { quoted: msg });
+          } else {
+            const cur = !!settings.get("autoLikeStatus");
+            await sock.sendMessage(from, {
+              text: `❤️ *Auto React/Like Status*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}autoreact on\` or \`${_pfx}autoreact off\``,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .feature ───────────────────────────────────────────────────────
+        // Generic toggle for any boolean setting key
+        if (_cmd === "feature") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          // Map friendly names → internal setting keys
+          const _featureMap = {
+            autoview:        "autoViewStatus",
+            autoviewstatus:  "autoViewStatus",
+            autoreact:       "autoLikeStatus",
+            autolike:        "autoLikeStatus",
+            autolikestatus:  "autoLikeStatus",
+            antidelete:      "antiDeleteMode",
+            antidel:         "antiDeleteMode",
+            anticall:        "antiCall",
+            alwaysonline:    "alwaysOnline",
+            autoread:        "autoReadMessages",
+            autoreadmessages:"autoReadMessages",
+            autotyping:      "autoTyping",
+            autorecording:   "autoRecording",
+            typingdelay:     "typingDelay",
+            prefixless:      "prefixless",
+            voreveal:        "voReveal",
+            antideletestatus:"antiDeleteStatus",
+          };
+          const parts   = _args.trim().split(/\s+/);
+          const fName   = (parts[0] || "").toLowerCase();
+          const fSub    = (parts[1] || "").toLowerCase();
+          const fKey    = _featureMap[fName];
+          if (!fKey) {
+            const list = Object.keys(_featureMap)
+              .filter((k, i, a) => a.indexOf(k) === i)
+              .join(", ");
+            await sock.sendMessage(from, {
+              text: `❓ Unknown feature.\n\nAvailable: \`${list}\`\n\nUsage: \`${_pfx}feature autoview on\``,
+            }, { quoted: msg });
+            return;
+          }
+          if (fSub === "on" || fSub === "off") {
+            settings.set(fKey, fSub === "on");
+            await sock.sendMessage(from, {
+              text: `✅ *${fName}* is now *${fSub.toUpperCase()}*`,
+            }, { quoted: msg });
+          } else {
+            const cur = !!settings.get(fKey);
+            await sock.sendMessage(from, {
+              text: `⚙️ *${fName}*\n\nCurrent: *${cur ? "ON" : "OFF"}*\n\nUsage: \`${_pfx}feature ${fName} on/off\``,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .prefixless ────────────────────────────────────────────────────
         if (_cmd === "prefixless") {
           if (!_isOwner) {
