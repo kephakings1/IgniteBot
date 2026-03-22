@@ -1021,6 +1021,7 @@ async function startBot() {
       if (!posterJid) return;
       if (settings.get("autoViewStatus")) {
         // Must pass full key object with participant for status messages
+        console.log(`[STATUS] 👁 viewing status from ${posterJid?.split("@")[0]} type=${msgType}`);
         sock.readMessages([{
           remoteJid:   "status@broadcast",
           id:          msg.key.id,
