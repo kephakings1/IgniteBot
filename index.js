@@ -1663,6 +1663,47 @@ async function startBot() {
           return;
         }
 
+        // ── .lyrics — fetch song lyrics with thumbnail ─────────────────────
+        if (_cmd === "lyrics") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `🎵 Usage: \`${_pfx}lyrics <song name>\``,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching lyrics for *${query}*...` }, { quoted: msg });
+          try {
+            const lyricsRes = await axios.get(
+              `https://api.dreaded.site/api/lyrics?title=${encodeURIComponent(query)}`,
+              { timeout: 30000 }
+            );
+            const data = lyricsRes.data;
+            if (!data?.success || !data?.result?.lyrics) {
+              await sock.sendMessage(from, {
+                text: `❌ Sorry, I couldn't find any lyrics for *"${query}"*.`,
+              }, { quoted: msg });
+              return;
+            }
+            const { title, artist, thumb, lyrics } = data.result;
+            const imageUrl = thumb || "https://files.catbox.moe/k2u5ks.jpg";
+            const caption  = `*Title*: ${title}\n*Artist*: ${artist}\n\n${lyrics}`;
+            try {
+              const imgRes = await axios.get(imageUrl, { responseType: "arraybuffer", timeout: 15000 });
+              const imgBuf = Buffer.from(imgRes.data);
+              await sock.sendMessage(from, { image: imgBuf, caption }, { quoted: msg });
+            } catch {
+              // fallback to text-only if image fetch fails
+              await sock.sendMessage(from, { text: caption }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: `❌ An error occurred while fetching lyrics for *"${query}"*: ${e.message}`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .apk / .app — search and download Android APKs ────────────────
         if (_cmd === "apk" || _cmd === "app") {
           const query = _args.trim();
@@ -1924,6 +1965,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 📱 *${_mPfx}apk / ${_mPfx}app <app name>*\n` +
             `║     Search and download an Android APK\n` +
+            `║\n` +
+            `║  ◈ 🎤 *${_mPfx}lyrics <song name>*\n` +
+            `║     Fetch lyrics with album art thumbnail\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
