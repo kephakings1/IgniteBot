@@ -1617,6 +1617,58 @@ async function startBot() {
           return;
         }
 
+        // ── .play2 — download audio via dreaded.site API ───────────────────
+        if (_cmd === "play2") {
+          const query = _args.trim();
+          if (!query) {
+            await sock.sendMessage(from, {
+              text: `🎵 Usage: \`${_pfx}play2 <song name>\`\n\nDownloads audio and sends it as both a playable file and a document.`,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: `🔍 Searching for *${query}*...` }, { quoted: msg });
+          try {
+            const yts = require("yt-search");
+            const { videos } = await yts(query);
+            if (!videos || !videos.length) {
+              await sock.sendMessage(from, { text: "❌ No songs found!" }, { quoted: msg });
+              return;
+            }
+            const urlYt = videos[0].url;
+            await sock.sendMessage(from, { text: `⬇️ Downloading *${videos[0].title}*...` }, { quoted: msg });
+            const apiRes = await axios.get(
+              `https://api.dreaded.site/api/ytdl/audio?url=${encodeURIComponent(urlYt)}`,
+              { timeout: 60000 }
+            );
+            const data = apiRes.data;
+            if (!data?.result?.download?.url) {
+              await sock.sendMessage(from, { text: "❌ Failed to fetch audio from the API." }, { quoted: msg });
+              return;
+            }
+            const { title, filename } = {
+              title:    data.result.metadata?.title    || videos[0].title,
+              filename: data.result.download?.filename || "audio.mp3",
+            };
+            const audioUrl = data.result.download.url;
+            // Send as document (downloadable file)
+            await sock.sendMessage(from, {
+              document: { url: audioUrl },
+              mimetype: "audio/mpeg",
+              caption:  `🎵 *${title}*\n\n_𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗_`,
+              fileName: filename,
+            }, { quoted: msg });
+            // Send as playable audio
+            await sock.sendMessage(from, {
+              audio:    { url: audioUrl },
+              mimetype: "audio/mpeg",
+              fileName: filename,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .enc / .encrypte ───────────────────────────────────────────────
         if (_cmd === "enc" || _cmd === "encrypte") {
           if (!msg.quoted?.body) {
@@ -1765,6 +1817,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🔐 *${_mPfx}enc*\n` +
             `║     Reply to JS code to obfuscate/encrypt it\n` +
+            `║\n` +
+            `║  ◈ 🎵 *${_mPfx}play2 <song name>*\n` +
+            `║     Download audio as file + playable audio\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
