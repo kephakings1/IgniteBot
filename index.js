@@ -1663,6 +1663,55 @@ async function startBot() {
           return;
         }
 
+        // ── .upload / .url — upload quoted media to catbox and return link ──
+        if (_cmd === "upload" || _cmd === "url") {
+          const quotedMsg  = msg.quoted?.message || null;
+          const quotedType = quotedMsg ? Object.keys(quotedMsg)[0] : null;
+          const mediaTypes = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage"];
+          if (!quotedMsg || !mediaTypes.includes(quotedType)) {
+            await sock.sendMessage(from, {
+              text: `📤 Usage: \`${_pfx}${_cmd}\` while replying to an image or video.\n\nUploads the media to catbox.moe and returns a direct link.`,
+            }, { quoted: msg });
+            return;
+          }
+          const mime = quotedMsg[quotedType]?.mimetype || "";
+          const isAllowed = /image\/(png|jpe?g|gif)|video\/mp4/.test(mime);
+          if (!isAllowed) {
+            await sock.sendMessage(from, {
+              text: "❌ Only PNG, JPG, GIF images and MP4 videos are supported.",
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "⬆️ Uploading media, please wait..." }, { quoted: msg });
+          let tmpPath = null;
+          try {
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: quotedMsg },
+              "buffer", {}
+            );
+            if (mediaBuf.length > 10 * 1024 * 1024) {
+              await sock.sendMessage(from, { text: "❌ Media is too large (max 10 MB)." }, { quoted: msg });
+              return;
+            }
+            const ext      = mime.includes("gif") ? "gif" : mime.includes("png") ? "png" : mime.includes("mp4") ? "mp4" : "jpg";
+            tmpPath        = path.join(process.cwd(), "data", `upload_${Date.now()}.${ext}`);
+            fs.writeFileSync(tmpPath, mediaBuf);
+            const uploadToCatbox = require("./lib/catbox");
+            const link = await uploadToCatbox(tmpPath);
+            const sizeMB = (mediaBuf.length / (1024 * 1024)).toFixed(2);
+            await sock.sendMessage(from, {
+              text: `✅ *Media Uploaded!*\n\n🔗 *Link:*\n${link}\n\n📦 *Size:* ${sizeMB} MB`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Upload failed: ${e.message}` }, { quoted: msg });
+          } finally {
+            if (tmpPath && fs.existsSync(tmpPath)) {
+              try { fs.unlinkSync(tmpPath); } catch {}
+            }
+          }
+          return;
+        }
+
         // ── .pickupline — send a random pickup line ─────────────────────────
         if (_cmd === "pickupline") {
           try {
@@ -2179,6 +2228,9 @@ async function startBot() {
             `║\n` +
             `║  ◈ 💘 *${_mPfx}pickupline*\n` +
             `║     Get a random pickup line\n` +
+            `║\n` +
+            `║  ◈ 📤 *${_mPfx}upload / ${_mPfx}url*\n` +
+            `║     Reply to image/video to upload to catbox.moe\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
