@@ -1663,6 +1663,130 @@ async function startBot() {
           return;
         }
 
+        // ── .screenshot / .ss — website screenshot via thum.io ─────────────
+        if (_cmd === "screenshot" || _cmd === "ss") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `🖼️ Usage: \`${_pfx}${_cmd} <website url>\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const url = _args.trim().startsWith("http") ? _args.trim() : `https://${_args.trim()}`;
+            const imgUrl = `https://image.thum.io/get/fullpage/${url}`;
+            const botName = settings.get("botName") || "NEXUS-MD";
+            await sock.sendMessage(from, {
+              image: { url: imgUrl },
+              caption: `📸 Screenshot by *${botName}*`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: "❌ An error occurred taking the screenshot." }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .fullpp — set bot profile picture from quoted image (owner) ──────
+        if (_cmd === "fullpp") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ This command is for the owner only." }, { quoted: msg });
+            return;
+          }
+          const qMsg  = msg.quoted?.message || null;
+          const qType = qMsg ? Object.keys(qMsg)[0] : null;
+          if (!qMsg || qType !== "imageMessage") {
+            await sock.sendMessage(from, {
+              text: "🖼️ Quote an image to set it as the bot's profile picture.",
+            }, { quoted: msg });
+            return;
+          }
+          let tmpPath = null;
+          try {
+            const { generateProfilePicture } = require("@whiskeysockets/baileys");
+            const mediaBuf = await downloadMediaMessage(
+              { key: msg.quoted.key, message: qMsg },
+              "buffer", {}
+            );
+            tmpPath = path.join(process.cwd(), "data", `fullpp_${Date.now()}.jpg`);
+            fs.writeFileSync(tmpPath, mediaBuf);
+            const { img } = await generateProfilePicture(tmpPath);
+            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            await sock.updateProfilePicture(botJid, img);
+            await sock.sendMessage(from, { text: "✅ Bot profile picture updated!" }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to update profile picture: ${e.message}` }, { quoted: msg });
+          } finally {
+            if (tmpPath && fs.existsSync(tmpPath)) {
+              try { fs.unlinkSync(tmpPath); } catch {}
+            }
+          }
+          return;
+        }
+
+        // ── .bundesliga / .bl-table — Bundesliga standings ──────────────────
+        if (_cmd === "bundesliga" || _cmd === "bl-table") {
+          try {
+            const res = await axios.get("https://api.dreaded.site/api/standings/BL1", { timeout: 15000 });
+            const standings = res.data?.data;
+            if (!standings) throw new Error("No data returned");
+            await sock.sendMessage(from, {
+              text: `*Current Bundesliga Table Standings*\n\n${standings}`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, {
+              text: "❌ Unable to fetch Bundesliga standings. Please try again.",
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .remove / .kick — remove a member from the group ────────────────
+        if (_cmd === "remove" || _cmd === "kick") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const parts   = await admin.getGroupParticipants(sock, from).catch(() => []);
+            const botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const botAdm  = parts.some(p => p.id === botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            if (!botAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to remove members." }, { quoted: msg });
+              return;
+            }
+            if (!admin.isAdmin(senderJid, parts)) {
+              await sock.sendMessage(from, { text: "❌ Only admins can use this command." }, { quoted: msg });
+              return;
+            }
+            const mentioned = msg.mentionedJids?.[0];
+            const target    = mentioned || msg.quoted?.sender || null;
+            if (!target) {
+              await sock.sendMessage(from, {
+                text: "❌ Mention or reply to the person you want to remove.",
+              }, { quoted: msg });
+              return;
+            }
+            const targetClean = target.replace(/:\d+@/, "@s.whatsapp.net");
+            // Protect owner / super admins
+            if (admin.isSuperAdmin(targetClean)) {
+              await sock.sendMessage(from, { text: "❌ That is an owner number — cannot remove! 😡" }, { quoted: msg });
+              return;
+            }
+            if (targetClean === botJid) {
+              await sock.sendMessage(from, { text: "❌ I cannot remove myself! 😡" }, { quoted: msg });
+              return;
+            }
+            await sock.groupParticipantsUpdate(from, [targetClean], "remove");
+            const num = targetClean.split("@")[0];
+            await sock.sendMessage(from, {
+              text: `✅ @${num} has been removed successfully!`,
+              mentions: [targetClean],
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to remove member: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .inbox — fetch temp-mail messages ───────────────────────────────
         if (_cmd === "inbox") {
           if (!_args.trim()) {
@@ -2616,6 +2740,18 @@ async function startBot() {
             `║\n` +
             `║  ◈ 🖥️ *${_mPfx}hacker2*\n` +
             `║     Apply hacker effect to a quoted image\n` +
+            `║\n` +
+            `║  ◈ 📸 *${_mPfx}screenshot / ${_mPfx}ss <url>*\n` +
+            `║     Take a full-page screenshot of any website\n` +
+            `║\n` +
+            `║  ◈ 🖼️ *${_mPfx}fullpp*\n` +
+            `║     Set bot profile picture from quoted image (owner)\n` +
+            `║\n` +
+            `║  ◈ ⚽ *${_mPfx}bundesliga / ${_mPfx}bl-table*\n` +
+            `║     Show current Bundesliga standings\n` +
+            `║\n` +
+            `║  ◈ 🚫 *${_mPfx}remove / ${_mPfx}kick*\n` +
+            `║     Remove a member (mention or reply) — group admins\n` +
             `║\n` +
             `╚════════════════════════════════╝`,
         }, { quoted: msg });
