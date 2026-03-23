@@ -403,7 +403,7 @@ app.post("/session", async (req, res) => {
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
-      setTimeout(startperez, 500);
+      setTimeout(startnexus, 500);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -439,7 +439,7 @@ app.post("/session/url", async (req, res) => {
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
-      setTimeout(startperez, 500);
+      setTimeout(startnexus, 500);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -773,7 +773,7 @@ async function fetchSettings() {
   };
 }
 
-async function startperez() {
+async function startnexus() {
 
   let autobio, autolike, welcome, autoview, mode, prefix, anticall;
 
@@ -844,7 +844,7 @@ async function startperez() {
     // Creating a socket without credentials causes a failed WhatsApp connection
     // attempt that closes immediately, which triggers Heroku's crash/restart loop.
     // The HTTP server (already listening) keeps the process alive stably.
-    // When the user POSTs a session via /session, startperez() is called again.
+    // When the user POSTs a session via /session, startnexus() is called again.
     return;
   }
 
@@ -958,7 +958,7 @@ async function startperez() {
         if (isBadSession) console.log("⚠️  Bad/corrupted session (500). Clearing and restarting...");
         if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         try { db.write("_latestSession", { id: null }); } catch {}
-        setTimeout(startperez, 2000);
+        setTimeout(startnexus, 2000);
       } else if (isReplaced) {
         // Another WhatsApp instance connected with the same session (e.g. a
         // new Heroku dyno starting while the old one is still running).
@@ -966,14 +966,14 @@ async function startperez() {
         // so the old dyno is fully dead and can't fight us for the session.
         console.log("⚠️  Connection replaced (440) — another instance started. Retrying in 60 s...");
         reconnectAttempts = 0;
-        setTimeout(startperez, 60000);
+        setTimeout(startnexus, 60000);
       } else if (waitingForSession) {
         // No session yet — don't loop. Wait for the user to POST a session.
         console.log(`⏳ No session configured. Visit /dashboard?tab=setup to get started.`);
       } else {
         const delay = reconnectDelay();
         console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
-        setTimeout(startperez, delay);
+        setTimeout(startnexus, delay);
       }
     }
 
@@ -4163,7 +4163,7 @@ db.init()
         } catch (_) {}
       }
     }
-    return startperez();
+    return startnexus();
   })
   .catch((err) => {
     console.error("Fatal bot error:", err);
