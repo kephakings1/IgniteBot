@@ -1220,7 +1220,7 @@ async function startnexus() {
       return;
     }
 
-    // ── Auto typing / recording — continuous heartbeat so indicator never expires
+    // ── Auto typing / recording — show indicator once, clear after response ─────
     const isVoiceOrAudio = msgType === "audioMessage" || !!msg.message?.audioMessage?.ptt;
     const shouldRecord = isVoiceOrAudio && settings.get("autoRecording");
     const shouldType   = !isVoiceOrAudio && settings.get("autoTyping");
@@ -1232,11 +1232,10 @@ async function startnexus() {
         console.warn(`[PRESENCE] ${type} → ${toJid?.split("@")[0]} failed: ${err.message}`)
       );
 
-    // Re-send presence every 10 s (WhatsApp clears it after ~25 s if not renewed)
+    // Send the indicator once — no repeating interval
     let presenceInterval = null;
     if (shouldRecord || shouldType) {
       _sendPresence(presenceType, from);
-      presenceInterval = setInterval(() => _sendPresence(presenceType, from), 10000);
     }
 
     // typingDelay: hold the typing indicator for at least 1 s before responding,
