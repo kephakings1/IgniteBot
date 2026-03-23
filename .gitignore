@@ -2,8 +2,14 @@ node_modules/
 auth_info_baileys/
 *.log
 .env
+
+# Runtime data — auto-generated, should not be committed
+data/botstore.json
+data/auto_added.json
 data/menu_combined.mp4
 data/menu_song.mp3
+data/menu_image.jpg
+data/menu_video.mp4
 
 # Private unobfuscated sources — NEVER commit these
 .private/
@@ -13,3 +19,9 @@ data/menu_song.mp3
 replit.nix
 replit.md
 .local/
+
+# OS & editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
