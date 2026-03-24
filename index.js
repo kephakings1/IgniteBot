@@ -1827,6 +1827,71 @@ async function startnexus() {
         // ── .antistatusmention / .gsm / .asm ─────────────────────────────
         // Manages the anti-status-mention feature per group.
         // Aliases: gsm (group status mention), asm (anti status mention)
+        if (_cmd === "antimentiongroup" || _cmd === "amg") {
+          if (!msg.isGroup) {
+            await sock.sendMessage(from, { text: "❌ This command only works inside a group." }, { quoted: msg });
+            return;
+          }
+          if (!_isOwner && !_isSenderAdmin) {
+            await sock.sendMessage(from, { text: "❌ Only group admins or the bot owner can use this command." }, { quoted: msg });
+            return;
+          }
+
+          const _amgAll  = db.read(`asm_settings`, {});
+          const _amgCur  = _amgAll[from] || { mode: "warn", maxWarn: 3 };
+          const _amgSub  = _args.trim().split(/\s+/)[0]?.toLowerCase();
+
+          if (_amgSub === "off") {
+            _amgAll[from] = { ..._amgCur, mode: "off" };
+            db.write(`asm_settings`, _amgAll);
+            await sock.sendMessage(from, {
+              text:
+                `🟢 *Anti-Mention Group* has been *turned OFF* for this group.\n\n` +
+                `Members can now tag this group in their status freely.\n` +
+                `Use *${_pfx}antimentiongroup on* to re-enable.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          if (_amgSub === "on") {
+            const _restore = _amgCur.mode === "off" ? (_amgCur._prevMode || "warn") : _amgCur.mode;
+            _amgAll[from] = { ..._amgCur, mode: _restore, _prevMode: _restore };
+            db.write(`asm_settings`, _amgAll);
+            const _modeNames = { warn: "⚠️ WARN", delete: "🗑️ DELETE", kick: "👢 KICK" };
+            await sock.sendMessage(from, {
+              text:
+                `🔴 *Anti-Mention Group* has been *turned ON* for this group.\n\n` +
+                `Mode: *${_modeNames[_restore] || _restore}*\n` +
+                `Members who tag this group in their status will be actioned.\n\n` +
+                `Use *${_pfx}antistatusmention warn/delete/kick* to change the action.`,
+            }, { quoted: msg });
+            return;
+          }
+
+          // No subcommand — show current status
+          const _curMode = _amgCur.mode || "warn";
+          const _isEnabled = _curMode !== "off";
+          const _modeLabel = { warn: "⚠️ WARN", delete: "🗑️ DELETE", kick: "👢 KICK", off: "🟢 OFF" }[_curMode] || _curMode;
+          await sock.sendMessage(from, {
+            text:
+              `╭─⌈ 🚫 *ANTI-MENTION GROUP* ⌋\n` +
+              `│\n` +
+              `├─ Status:  *${_isEnabled ? "🔴 ENABLED" : "🟢 DISABLED"}*\n` +
+              `├─ Mode:    *${_modeLabel}*\n` +
+              `├─ MaxWarn: *${_amgCur.maxWarn || 3}*\n` +
+              `│\n` +
+              `├─ Commands:\n` +
+              `├─⊷ ${_pfx}antimentiongroup on\n` +
+              `├─⊷ ${_pfx}antimentiongroup off\n` +
+              `│\n` +
+              `├─ Advanced: use ${_pfx}antistatusmention for\n` +
+              `│  warn / delete / kick / maxwarn / reset\n` +
+              `│\n` +
+              `╰─ Alias: ${_pfx}amg`,
+          }, { quoted: msg });
+          return;
+        }
+
         if (_cmd === "antistatusmention" || _cmd === "gsm" || _cmd === "asm") {
           if (!msg.isGroup) {
             await sock.sendMessage(from, { text: "❌ This command only works inside a group." }, { quoted: msg });
@@ -1976,7 +2041,7 @@ async function startnexus() {
                 `├─⊷ ${_pfx}antistatusmention reset <@user>\n` +
                 `├─⊷ ${_pfx}antistatusmention status\n` +
                 `│\n` +
-                `╰─ Aliases: ${_pfx}gsm, ${_pfx}asm`,
+                `╰─ Aliases: ${_pfx}gsm, ${_pfx}asm, ${_pfx}antimentiongroup, ${_pfx}amg`,
             }, { quoted: msg });
             return;
           }
