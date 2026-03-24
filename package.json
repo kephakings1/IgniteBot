@@ -20,6 +20,7 @@
     "axios": "^1.13.6",
     "chalk": "^5.6.2",
     "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
     "express": "^4.22.1",
     "figlet": "^1.11.0",
     "file-type": "^16.5.4",
@@ -30,6 +31,7 @@
     "heroku-client": "^3.1.1",
     "human-readable": "^0.2.1",
     "imgur": "^2.3.0",
+    "javascript-obfuscator": "^5.4.1",
     "jimp": "^1.6.0",
     "luxon": "^3.7.2",
     "mime-types": "^3.0.2",
@@ -49,8 +51,6 @@
     "sharp": "^0.34.5",
     "tesseract.js": "^7.0.0",
     "wa-sticker-formatter": "^4.4.4",
-    "javascript-obfuscator": "^5.4.1",
     "yt-search": "^2.13.1"
-  },
-  "devDependencies": {}
+  }
 }

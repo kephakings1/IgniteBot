@@ -1,3 +1,6 @@
+// Auto-load .env file if present (panels / VPS / local dev — no-op on Heroku)
+try { require("dotenv").config({ quiet: true }); } catch {}
+
 // Hint for libuv thread pool (effective when set before process start via Procfile)
 process.env.UV_THREADPOOL_SIZE = process.env.UV_THREADPOOL_SIZE || "8";
 

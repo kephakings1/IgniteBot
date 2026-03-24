@@ -61,27 +61,38 @@
 
 [![Download ZIP](https://img.shields.io/badge/DOWNLOAD%20ZIP-FF6B35?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ignatiusmkuu-spec/IgniteBot/archive/refs/heads/main.zip)
 
-**② Upload & extract on your panel, then install dependencies**
+**② Upload & extract on your panel, then set up your config**
+
+```bash
+cp .env.example .env   # copy the template
+nano .env              # fill in your SESSION_ID and ADMIN_NUMBERS
+```
+
+**③ Start the bot using the panel script (handles everything)**
+
+```bash
+bash scripts/panel.sh
+```
+
+> The script auto-installs dependencies, creates required folders, and starts the bot. On first run with no session it will print a QR code to scan.
+
+**Or start manually:**
 
 ```bash
 npm install
+node index.js
 ```
 
-**③ Set your environment variables**
+**Required environment variables**
 
 | Variable | Description |
 |:---|:---|
 | `SESSION_ID` | Your WhatsApp session (from pairing site) |
 | `ADMIN_NUMBERS` | Your number e.g. `254706535581` |
-| `DATABASE_URL` | PostgreSQL URL (optional but recommended) |
+| `PORT` | Dashboard port (default: `5000`) |
+| `DATABASE_URL` | PostgreSQL URL — *optional*, local file used if blank |
 
-**④ Start the bot**
-
-```bash
-node index.js
-```
-
-> ℹ️ On panels with no persistent DB, settings and session are saved to `data/botstore.json` automatically.
+> ℹ️ No database needed on panels — session and settings are automatically saved to `data/botstore.json` on the panel's persistent filesystem.
 
 </div>
 
