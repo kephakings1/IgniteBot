@@ -791,6 +791,7 @@ async function fetchSettings() {
     antitag:     data.antitag     ?? "on",
     antibot:     data.antibot     ?? "off",
     welcome:     data.welcome     ?? "off",
+    goodbye:     data.goodbye     ?? "off",
     autobio:     data.autobio     ?? "off",
     badword:     data.badword     ?? "on",
     gptdm:       data.gptdm       ?? "off",
@@ -1366,6 +1367,35 @@ async function startnexus() {
               console.error("[antilink] error:", _alErr.message);
             }
           }
+        }
+      }
+    }
+
+    // ── Anti-Tag — prevent non-admins from tagging/mentioning others ──────────
+    const _antitagVal = settings.get("antitag");
+    if (msg.isGroup && !msg.key.fromMe && (_antitagVal === "on" || _antitagVal === true)) {
+      const _hasMentions = msg.mentionedJids?.length > 0;
+      if (_hasMentions && !admin.isSuperAdmin(senderJid)) {
+        try {
+          const _atMeta     = await _getGroupMeta(sock, from);
+          const _atParts    = _atMeta?.participants || [];
+          const _botRawJid  = sock.user?.id || "";
+          const _botPhone   = _botRawJid.split(":")[0].split("@")[0];
+          const _botPart    = _atParts.find(p => p.id.split(":")[0].split("@")[0] === _botPhone);
+          const _isBotAdmin = _botPart?.admin === "admin" || _botPart?.admin === "superadmin";
+          const _senderPart = _atParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
+          const _senderIsGrpAdmin = _senderPart?.admin === "admin" || _senderPart?.admin === "superadmin";
+          if (!_senderIsGrpAdmin) {
+            if (_isBotAdmin) {
+              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
+            }
+            await sock.sendMessage(from, {
+              text: `🚫 @${phone} *Tagging/mentioning members is not allowed here!*\n_(Only admins can mention others)_`,
+              mentions: [senderJid],
+            }).catch(() => {});
+          }
+        } catch (_atErr) {
+          console.error("[antitag] error:", _atErr.message);
         }
       }
     }
@@ -2239,6 +2269,103 @@ async function startnexus() {
           return;
         }
 
+        // ── .antitag — toggle anti-tag/mention enforcement ─────────────────
+        if (_cmd === "antitag" || _cmd === "antimention") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _atgSub = _args.toLowerCase().trim();
+          if (_atgSub === "on" || _atgSub === "off") {
+            settings.set("antitag", _atgSub);
+            await sock.sendMessage(from, {
+              text:
+                `🚫 *Anti-Tag* is now *${_atgSub.toUpperCase()}*\n\n` +
+                (_atgSub === "on"
+                  ? `Non-admin members who tag/mention others in groups will have their message deleted and receive a warning.`
+                  : `Members can now freely tag/mention others in groups.`),
+            }, { quoted: msg });
+          } else {
+            const _atgCur = settings.get("antitag") || "off";
+            await sock.sendMessage(from, {
+              text:
+                `🚫 *Anti-Tag (Anti-Mention)*\n\n` +
+                `Current: *${_atgCur.toUpperCase() === "ON" ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON:\n` +
+                `• Non-admin members cannot tag/mention others\n` +
+                `• The message is deleted (if bot is admin)\n` +
+                `• A warning is sent to the tagger\n` +
+                `• Group admins and the bot owner are exempt\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}antitag on\` — enable\n` +
+                `• \`${_pfx}antitag off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .welcome — toggle welcome messages for new members ──────────────
+        if (_cmd === "welcome" || _cmd === "setwelcome") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _wSub = _args.toLowerCase().trim();
+          if (_wSub === "on" || _wSub === "off") {
+            settings.set("welcome", _wSub === "on");
+            await sock.sendMessage(from, {
+              text:
+                `🎉 *Welcome Messages* is now *${_wSub.toUpperCase()}*\n\n` +
+                (_wSub === "on"
+                  ? `New members joining any group will receive a welcome message with their name, number, and profile picture.`
+                  : `New members will join silently — no welcome message will be sent.`),
+            }, { quoted: msg });
+          } else {
+            const _wCur = !!settings.get("welcome");
+            await sock.sendMessage(from, {
+              text:
+                `🎉 *Welcome Messages*\n\n` +
+                `Current: *${_wCur ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON, a welcome card is sent whenever someone joins a group the bot is in.\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}welcome on\` — enable\n` +
+                `• \`${_pfx}welcome off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .goodbye — toggle goodbye messages for leaving members ──────────
+        if (_cmd === "goodbye" || _cmd === "farewell" || _cmd === "setgoodbye") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _gbSub = _args.toLowerCase().trim();
+          if (_gbSub === "on" || _gbSub === "off") {
+            settings.set("goodbye", _gbSub === "on");
+            await sock.sendMessage(from, {
+              text:
+                `👋 *Goodbye Messages* is now *${_gbSub.toUpperCase()}*\n\n` +
+                (_gbSub === "on"
+                  ? `A farewell message will be sent whenever a member leaves or is removed from any group.`
+                  : `Members will leave silently — no goodbye message will be sent.`),
+            }, { quoted: msg });
+          } else {
+            const _gbCur = !!settings.get("goodbye");
+            await sock.sendMessage(from, {
+              text:
+                `👋 *Goodbye Messages*\n\n` +
+                `Current: *${_gbCur ? "ON ✅" : "OFF ❌"}*\n\n` +
+                `When ON, a farewell card is sent whenever a member leaves or is removed from a group.\n\n` +
+                `Usage:\n` +
+                `• \`${_pfx}goodbye on\` — enable\n` +
+                `• \`${_pfx}goodbye off\` — disable`,
+            }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .autoview ──────────────────────────────────────────────────────
         if (_cmd === "autoview" || _cmd === "autoviewstatus") {
           if (!_isOwner) {
@@ -2406,6 +2533,13 @@ async function startnexus() {
             prefixless:      "prefixless",
             voreveal:        "voReveal",
             antiviewonce:    "voReveal",
+            antitag:         "antitag",
+            antimention:     "antitag",
+            welcome:         "welcome",
+            setwelcome:      "welcome",
+            goodbye:         "goodbye",
+            farewell:        "goodbye",
+            setgoodbye:      "goodbye",
             ghost:           "ghostMode",
             ghostmode:       "ghostMode",
             hidebluetick:    "ghostMode",
@@ -5112,6 +5246,8 @@ async function startnexus() {
               `┃ ⛔ ${_pfx}settextlimit\n` +
               `┃ ⛔ ${_pfx}antimention\n` +
               `┃ ⛔ ${_pfx}antitag\n` +
+              `┃ ⛔ ${_pfx}welcome — toggle welcome messages (on/off)\n` +
+              `┃ ⛔ ${_pfx}goodbye — toggle goodbye messages (on/off)\n` +
               `┃ ⛔ ${_pfx}antisticker\n` +
               `┃ ⛔ ${_pfx}antidelete\n` +
               `┃ ⛔ ${_pfx}anticall\n` +
@@ -5580,8 +5716,11 @@ async function startnexus() {
     if (action === "add") {
       for (const p of participants) {
         const memberJid = normalizeJid(p);
-        // Standard welcome message
-        await groups.sendWelcome(sock, id, memberJid).catch(() => {});
+        // Standard welcome message — only send if welcome is enabled
+        const _welcomeVal = settings.get("welcome");
+        if (_welcomeVal === true || _welcomeVal === "on") {
+          await groups.sendWelcome(sock, id, memberJid).catch(() => {});
+        }
         // Premium welcome card (if enabled for this group)
         if (premium.isWelcomeCardEnabled(id)) {
           (async () => {
@@ -5605,7 +5744,10 @@ async function startnexus() {
         }
       }
     } else if (action === "remove") {
-      for (const p of participants) await groups.sendGoodbye(sock, id, normalizeJid(p)).catch(() => {});
+      const _goodbyeVal = settings.get("goodbye");
+      if (_goodbyeVal === true || _goodbyeVal === "on") {
+        for (const p of participants) await groups.sendGoodbye(sock, id, normalizeJid(p)).catch(() => {});
+      }
       const antiLeaveOn = security.getGroupSettings(id).antiLeave;
       if (antiLeaveOn) {
         for (const p of participants) {
