@@ -6,6 +6,12 @@ let pool = null;
 let localMode = false;
 const LOCAL_PATH = path.join(process.cwd(), 'data', 'botsettings.json');
 
+// ── In-memory cache ───────────────────────────────────────────────────────────
+// Populated once at initializeDatabase() so that transient DB connectivity
+// issues on Heroku never block startnexus() on reconnect attempts.
+// getSettings() returns the cache if the DB call fails instead of throwing.
+let _settingsCache = null;
+
 const defaultSettings = {
   antilink:   'on',
   antilinkall:'off',
@@ -29,10 +35,16 @@ function _getPool() {
   if (!pool && process.env.DATABASE_URL) {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 5,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 4000,
+      ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
+        ? false
+        : { rejectUnauthorized: false },
+      max: 3,
+      idleTimeoutMillis: 60000,       // keep idle connections alive longer on Heroku
+      connectionTimeoutMillis: 8000,  // give Heroku's shared PG more time to respond
+    });
+    pool.on('error', (err) => {
+      // Swallow pool-level errors so the process doesn't crash on idle connection drops
+      console.warn('[settings-pool] idle client error (ignored):', err.message);
     });
   }
   return pool;
@@ -62,14 +74,14 @@ async function initializeDatabase() {
     const existing = _readLocal();
     const merged = { ...defaultSettings, ...existing };
     _writeLocal(merged);
+    _settingsCache = merged;
     console.log('✅ Local settings initialised');
     return;
   }
 
-  const client = await pg.connect();
   console.log('📡 Connecting to PostgreSQL for settings...');
   try {
-    await client.query(`
+    await pg.query(`
       CREATE TABLE IF NOT EXISTS bot_settings (
         id SERIAL PRIMARY KEY,
         key TEXT UNIQUE NOT NULL,
@@ -77,38 +89,61 @@ async function initializeDatabase() {
       );
     `);
     for (const [key, value] of Object.entries(defaultSettings)) {
-      await client.query(
+      await pg.query(
         `INSERT INTO bot_settings (key, value)
          VALUES ($1, $2)
          ON CONFLICT (key) DO NOTHING;`,
         [key, value]
       );
     }
+    // Warm the in-memory cache from the DB
+    const { rows } = await pg.query('SELECT key, value FROM bot_settings');
+    const loaded = { ...defaultSettings };
+    for (const row of rows) loaded[row.key] = row.value;
+    _settingsCache = loaded;
     console.log('✅ PostgreSQL settings table initialised');
   } catch (err) {
     console.error('❌ Settings DB init error:', err.message);
-  } finally {
-    client.release();
+    // Fall back to local file so bot can still start
+    const existing = _readLocal();
+    _settingsCache = { ...defaultSettings, ...existing };
   }
 }
 
 async function getSettings() {
   const pg = _getPool();
+
+  // ── Local / no-DB mode ────────────────────────────────────────────────────
   if (!pg) {
     const local = _readLocal();
-    return { ...defaultSettings, ...local };
+    const result = { ...defaultSettings, ...local };
+    _settingsCache = result;
+    return result;
   }
-  const client = await pg.connect();
+
+  // ── If the cache is already populated, return it immediately ─────────────
+  // This means any DB connectivity issue on reconnect retries does NOT block
+  // startnexus() — it just uses the last-known good settings.
+  if (_settingsCache) {
+    // Refresh from DB in the background so the cache stays current
+    pg.query('SELECT key, value FROM bot_settings').then(({ rows }) => {
+      const refreshed = { ...defaultSettings };
+      for (const row of rows) refreshed[row.key] = row.value;
+      _settingsCache = refreshed;
+    }).catch(() => {});  // silently ignore — stale cache is better than an error
+    return _settingsCache;
+  }
+
+  // ── First call before initializeDatabase() cached data (unusual) ─────────
   try {
-    const { rows } = await client.query('SELECT key, value FROM bot_settings');
+    const { rows } = await pg.query('SELECT key, value FROM bot_settings');
     const result = { ...defaultSettings };
     for (const row of rows) result[row.key] = row.value;
+    _settingsCache = result;
     return result;
   } catch (err) {
     console.error('❌ getSettings error:', err.message);
-    return { ...defaultSettings };
-  } finally {
-    client.release();
+    return _settingsCache ?? { ...defaultSettings };
   }
 }
 
@@ -123,6 +158,9 @@ async function getGroupSetting(jid) {
 }
 
 async function updateSetting(key, value) {
+  // Update cache immediately so reads after this don't need to hit the DB
+  if (_settingsCache) _settingsCache[key] = String(value);
+
   const pg = _getPool();
   if (!pg) {
     const local = _readLocal();
@@ -130,9 +168,8 @@ async function updateSetting(key, value) {
     _writeLocal(local);
     return true;
   }
-  const client = await pg.connect();
   try {
-    await client.query(
+    await pg.query(
       `INSERT INTO bot_settings (key, value)
        VALUES ($1, $2)
        ON CONFLICT (key) DO UPDATE SET value = $2`,
@@ -142,8 +179,6 @@ async function updateSetting(key, value) {
   } catch (err) {
     console.error('❌ updateSetting error:', err.message);
     return false;
-  } finally {
-    client.release();
   }
 }
 
