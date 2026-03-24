@@ -4073,6 +4073,300 @@ async function startnexus() {
           return;
         }
 
+        // ── .pair / .rent — generate a WhatsApp pairing code ──────────────
+        if (_cmd === "pair" || _cmd === "rent") {
+          const _pairNum = _args.trim();
+          if (!_pairNum) {
+            await sock.sendMessage(from, {
+              text: `📱 Usage: \`${_pfx}pair <number>\`\nExample: \`${_pfx}pair 254114280000\`\nProvide a valid WhatsApp number without + sign.`,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _nums = _pairNum.split(",")
+              .map(v => v.replace(/[^0-9]/g, ""))
+              .filter(v => v.length > 5 && v.length < 20);
+            if (!_nums.length) {
+              await sock.sendMessage(from, { text: "❌ Invalid number format. Use digits only." }, { quoted: msg });
+              return;
+            }
+            for (const _n of _nums) {
+              const _jid    = _n + "@s.whatsapp.net";
+              const _exists = await sock.onWhatsApp(_jid).catch(() => []);
+              if (!_exists?.[0]?.exists) {
+                await sock.sendMessage(from, { text: `❌ +${_n} is not registered on WhatsApp.` }, { quoted: msg });
+                continue;
+              }
+              await sock.sendMessage(from, { text: "⏳ Wait a moment for the pairing code..." }, { quoted: msg });
+              const _pRes  = await axios.get(`https://perez-md-pairing.onrender.com/code?number=${_n}`, { timeout: 30000 });
+              const _code  = _pRes.data?.code;
+              if (!_code) {
+                await sock.sendMessage(from, { text: "❌ Failed to retrieve a pairing code. Try again later." }, { quoted: msg });
+                continue;
+              }
+              await new Promise(r => setTimeout(r, 5000));
+              await sock.sendMessage(from, { text: `🔑 *Pairing Code*\n\n${_code}` }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ An error occurred: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── Text-art effects (typography, purple, thunder, leaves, sand, child, glass) ──
+        const _textArtMap = {
+          typography: "https://en.ephoto360.com/create-typography-text-effect-on-pavement-online-774.html",
+          purple:     "https://en.ephoto360.com/purple-text-effect-online-100.html",
+          thunder:    "https://en.ephoto360.com/thunder-text-effect-online-97.html",
+          leaves:     "https://en.ephoto360.com/green-brush-text-effect-typography-maker-online-153.html",
+          sand:       "https://en.ephoto360.com/write-names-and-messages-on-the-sand-online-582.html",
+          child:      "https://en.ephoto360.com/write-text-on-wet-glass-online-589.html",
+        };
+        if (_textArtMap[_cmd]) {
+          const _taText = _args.trim();
+          if (!_taText) {
+            await sock.sendMessage(from, {
+              text: `🎨 Usage: \`${_pfx}${_cmd} <your text>\`\nExample: \`${_pfx}${_cmd} NEXUS-MD\``,
+            }, { quoted: msg });
+            return;
+          }
+          await sock.sendMessage(from, { text: "🎨 *Wait a moment...*" }, { quoted: msg });
+          try {
+            const _mumaker = require("mumaker");
+            const _taRes   = await _mumaker.ephoto(_textArtMap[_cmd], _taText);
+            await sock.sendMessage(from, {
+              image:   { url: _taRes.image },
+              caption: `ᘜᗴᑎᗴᖇᗩTᗴᗪ ᗷY ᑎᗴ᙭ᑌՏ ᗰᗪ`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Text-art effect failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .wikipedia / .wiki — Wikipedia search ──────────────────────────
+        if (_cmd === "wikipedia" || _cmd === "wiki") {
+          const _wQuery = _args.trim();
+          if (!_wQuery) {
+            await sock.sendMessage(from, {
+              text: `📚 Usage: \`${_pfx}wiki <search term>\`\nExample: \`${_pfx}wiki Albert Einstein\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _cheerio = require("cheerio");
+            const _wRes    = await axios.get(
+              `https://en.wikipedia.org/wiki/${encodeURIComponent(_wQuery)}`,
+              { timeout: 15000 }
+            );
+            const _$   = _cheerio.load(_wRes.data);
+            const _wTitle  = _$("#firstHeading").text().trim();
+            const _wBody   = _$("#mw-content-text > div.mw-parser-output").find("p").text().trim();
+            const _wSnip   = _wBody.slice(0, 1500) + (_wBody.length > 1500 ? "..." : "");
+            const _wMsg =
+              `▢ *Wikipedia Search Result* 🧐\n\n` +
+              `‣ *Title:* ${_wTitle} 📚\n\n` +
+              `${_wSnip} 📖\n\n` +
+              `🔗 https://en.wikipedia.org/wiki/${encodeURIComponent(_wQuery)}`;
+            await sock.sendMessage(from, { text: _wMsg }, { quoted: msg });
+          } catch (e) {
+            if (e.response?.status === 404) {
+              await sock.sendMessage(from, { text: `❌ No Wikipedia article found for *"${_wQuery}"*.` }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, { text: `⚠️ Failed to fetch Wikipedia data: ${e.message}` }, { quoted: msg });
+            }
+          }
+          return;
+        }
+
+        // ── .foreigners — list / remove non-local country-code members ──────
+        if (_cmd === "foreigners") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const _fMeta   = await sock.groupMetadata(from).catch(() => null);
+            const _fParts  = _fMeta?.participants || [];
+            const _botJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const _fBotAdm = _fParts.some(p => p.id === _botJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const _fSndAdm = _fParts.some(p =>
+              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
+              (p.admin === "admin" || p.admin === "superadmin")
+            );
+            if (!_fBotAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
+              return;
+            }
+            if (!_fSndAdm && !_isOwner) {
+              await sock.sendMessage(from, { text: "❌ Only group admins can use this command." }, { quoted: msg });
+              return;
+            }
+            // Determine local country code from owner's number
+            const _ownerNums  = require("./config").admins || [];
+            const _localCode  = _ownerNums.length ? (_ownerNums[0].replace(/[^0-9]/g, "").slice(0, 3)) : "";
+            const _botPhone   = (_botJid.split("@")[0]);
+            const _foreigners = _fParts
+              .filter(p => !p.admin)
+              .map(p => p.id)
+              .filter(jid => {
+                const num = jid.split("@")[0];
+                return jid !== _botJid && (_localCode ? !num.startsWith(_localCode) : false);
+              });
+            const _fSub = _args.trim().toLowerCase();
+            if (!_fSub || _fSub !== "-x") {
+              if (!_foreigners.length) {
+                await sock.sendMessage(from, { text: "✅ No foreigners detected in this group." }, { quoted: msg });
+                return;
+              }
+              let _fTxt = `🌍 Foreigners are members whose country code is not *${_localCode}*.\n`;
+              _fTxt += `Found *${_foreigners.length}* foreigners:\n\n`;
+              for (const jid of _foreigners) _fTxt += `𓅂 @${jid.split("@")[0]}\n`;
+              _fTxt += `\nTo remove them, send \`${_pfx}foreigners -x\``;
+              await sock.sendMessage(from, { text: _fTxt, mentions: _foreigners }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, {
+                text: `🗑️ Removing *${_foreigners.length}* foreigners from this group. Goodbye! 😔`,
+              }, { quoted: msg });
+              await new Promise(r => setTimeout(r, 1000));
+              await sock.groupParticipantsUpdate(from, _foreigners, "remove").catch(() => {});
+              await new Promise(r => setTimeout(r, 1000));
+              await sock.sendMessage(from, { text: "✅ Done. All foreigners removed successfully." }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Foreigners command failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .carbon — render quoted code as a styled image ──────────────────
+        if (_cmd === "carbon") {
+          if (!msg.quoted?.body && !msg.quoted?.text) {
+            await sock.sendMessage(from, { text: `💻 Usage: Quote a code message and send \`${_pfx}carbon\`\n\nConverts code to a beautiful image.` }, { quoted: msg });
+            return;
+          }
+          const _codeText = msg.quoted.body || msg.quoted.text || "";
+          const _botNm    = settings.get("botName") || "NEXUS-MD";
+          try {
+            const _cRes = await axios.post("https://carbonara.solopov.dev/api/cook", {
+              code:            _codeText,
+              backgroundColor: "#1F816D",
+            }, {
+              responseType: "arraybuffer",
+              timeout:      30000,
+              headers:      { "Content-Type": "application/json" },
+            });
+            await sock.sendMessage(from, {
+              image:   Buffer.from(_cRes.data),
+              caption: `𝗖𝗢𝗡𝗩𝗘𝗥𝗧𝗘𝗗 𝗕𝗬 ${_botNm}`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Carbon failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .faker — detect / remove fake accounts (US +1 numbers) ──────────
+        if (_cmd === "faker") {
+          if (!from.endsWith("@g.us")) {
+            await sock.sendMessage(from, { text: "❌ This command only works in groups." }, { quoted: msg });
+            return;
+          }
+          try {
+            const _fakeMeta  = await sock.groupMetadata(from).catch(() => null);
+            const _fakeParts = _fakeMeta?.participants || [];
+            const _fkBotJid  = (sock.user?.id || "").replace(/:\d+@/, "@s.whatsapp.net");
+            const _fkBotAdm  = _fakeParts.some(p => p.id === _fkBotJid && (p.admin === "admin" || p.admin === "superadmin"));
+            const _fkSndAdm  = _fakeParts.some(p =>
+              (p.id === senderJid || p.id.split(":")[0] + "@s.whatsapp.net" === senderJid) &&
+              (p.admin === "admin" || p.admin === "superadmin")
+            );
+            if (!_fkBotAdm) {
+              await sock.sendMessage(from, { text: "❌ I need to be a group admin to use this command." }, { quoted: msg });
+              return;
+            }
+            if (!_fkSndAdm && !_isOwner) {
+              await sock.sendMessage(from, { text: "❌ Only group admins can use this command." }, { quoted: msg });
+              return;
+            }
+            // Fake accounts typically have US (+1) numbers
+            const _fakeAccs = _fakeParts
+              .filter(p => !p.admin)
+              .map(p => p.id)
+              .filter(jid => jid.split("@")[0].startsWith("1") && jid !== _fkBotJid);
+            const _fkSub = _args.trim().toLowerCase();
+            if (!_fkSub || _fkSub !== "-x") {
+              if (!_fakeAccs.length) {
+                await sock.sendMessage(from, { text: "𝙽𝚘 𝚏𝚊𝚔𝚎 𝙰𝚌𝚌𝚘𝚞𝚗𝚝𝚜 𝚍𝚎𝚝𝚎𝚌𝚝𝚎𝚍." }, { quoted: msg });
+                return;
+              }
+              let _fkTxt = `🚮 Nexus 𝚑𝚊𝚜 𝚍𝚎𝚝𝚎𝚌𝚝𝚎𝚍 𝚝𝚑𝚎 𝚏𝚘𝚕𝚕𝚘𝚠𝚒𝚗𝚐 *${_fakeAccs.length}* 𝙵𝚊𝚔𝚎 𝚊𝚌𝚌𝚘𝚞𝚗𝚝𝚜 𝚒𝚗 𝚝𝚑𝚒𝚜 𝚐𝚛𝚘𝚞𝚙:\n\n`;
+              for (const jid of _fakeAccs) _fkTxt += `🚮 @${jid.split("@")[0]}\n`;
+              _fkTxt += `\n𝚃𝚘 𝚛𝚎𝚖𝚘𝚟𝚎 𝚝𝚑𝚎𝚖 𝚜𝚎𝚗𝚍 \`${_pfx}faker -x\``;
+              await sock.sendMessage(from, { text: _fkTxt, mentions: _fakeAccs }, { quoted: msg });
+            } else {
+              await sock.sendMessage(from, {
+                text: `🗑️ Now removing *${_fakeAccs.length}* 𝙵𝚊𝚔𝚎 𝙰𝚌𝚌𝚘𝚞𝚗𝚝𝚜 from this group.\n\n𝙶𝚘𝚘𝚍𝚋𝚢𝚎👋 𝙵𝚊𝚔𝚎 𝚙𝚎𝚘𝚙𝚕𝚎.`,
+              }, { quoted: msg });
+              await new Promise(r => setTimeout(r, 1000));
+              await sock.groupParticipantsUpdate(from, _fakeAccs, "remove").catch(() => {});
+              await new Promise(r => setTimeout(r, 1000));
+              await sock.sendMessage(from, { text: "𝚂𝚞𝚌𝚌𝚎𝚜𝚜𝚏𝚞𝚕𝚕𝚢 𝚛𝚎𝚖𝚘𝚟𝚎𝚍 𝚊𝚕𝚕 𝚏𝚊𝚔𝚎 𝚊𝚌𝚌𝚘𝚞𝚗𝚝𝚜✅." }, { quoted: msg });
+            }
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Faker command failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .quotes — quote of the day ──────────────────────────────────────
+        if (_cmd === "quotes" || _cmd === "quote") {
+          try {
+            const _qotdRes = await axios.get("https://favqs.com/api/qotd", { timeout: 15000 });
+            const _qt = _qotdRes.data?.quote;
+            if (!_qt) throw new Error("Empty response");
+            await sock.sendMessage(from, {
+              text: `💬 *"${_qt.body}"*\n\n— *${_qt.author}*\n\n𝗤𝘂𝗼𝘁𝗲 𝗕𝘆 𝗡𝗘𝗫𝗨𝗦-𝗠𝗗`,
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Failed to fetch quote: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .google — Google Custom Search ──────────────────────────────────
+        if (_cmd === "google") {
+          const _gQuery = _args.trim();
+          if (!_gQuery) {
+            await sock.sendMessage(from, {
+              text: `🔍 Usage: \`${_pfx}google <search term>\`\nExample: \`${_pfx}google What is treason\``,
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            const _gRes = await axios.get(
+              `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(_gQuery)}&key=AIzaSyDMbI3nvmQUrfjoCJYLS69Lej1hSXQjnWI&cx=baf9bdb0c631236e5`,
+              { timeout: 15000 }
+            );
+            const _gItems = _gRes.data?.items || [];
+            if (!_gItems.length) {
+              await sock.sendMessage(from, { text: "❌ No results found for that query." }, { quoted: msg });
+              return;
+            }
+            let _gTxt = `🔍 *GOOGLE SEARCH*\n📌 *Term:* ${_gQuery}\n\n`;
+            for (let i = 0; i < Math.min(5, _gItems.length); i++) {
+              const _gi = _gItems[i];
+              _gTxt += `🪧 *${i + 1}. ${_gi.title}*\n`;
+              _gTxt += `🖥 ${_gi.snippet}\n`;
+              _gTxt += `🌐 ${_gi.link}\n\n`;
+            }
+            await sock.sendMessage(from, { text: _gTxt.trim() }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Google search failed: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
         // ── .block ─────────────────────────────────────────────────────────
         if (_cmd === "block") {
           if (!_isOwner) {
