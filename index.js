@@ -975,17 +975,14 @@ async function startnexus() {
 
       const DR = DisconnectReason;
       const isLoggedOut        = statusCode === DR.loggedOut;         // 401 — WhatsApp revoked the session
-      const isBadSession       = statusCode === 500;                  // corrupted keys
       const isReplaced         = statusCode === DR.connectionReplaced; // 440 — another device took over
-      const clearAndRestart    = isLoggedOut || isBadSession;
 
       // Always log the exact disconnect code so it appears in Heroku logs
       console.log(`🔴 WA disconnected | code=${statusCode ?? "none"} | ${errMsg.slice(0, 80) || "no message"}`);
 
-      if (clearAndRestart) {
+      if (isLoggedOut) {
         reconnectAttempts = 0;
-        if (isLoggedOut) console.log("⚠️  Logged out by WhatsApp (401). Clearing session and waiting for re-pair...");
-        if (isBadSession) console.log("⚠️  Bad/corrupted session (500). Clearing and restarting...");
+        console.log("⚠️  Logged out by WhatsApp (401). Clearing session and waiting for re-pair...");
         if (fs.existsSync(AUTH_FOLDER)) fs.rmSync(AUTH_FOLDER, { recursive: true, force: true });
         try { db.write("_latestSession", { id: null }); } catch {}
         setTimeout(startnexus, 2000);
