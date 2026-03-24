@@ -2198,25 +2198,42 @@ async function startnexus() {
           try {
             let targetUrl = query;
             let songTitle = query;
-            if (!query.startsWith("http")) {
-              const results = await downloader.searchYouTube(query);
-              if (!results || !results.length) {
+            // If not a direct URL, search YouTube first
+            if (!/^https?:\/\//i.test(query)) {
+              const yts = require("yt-search");
+              const { videos } = await yts(query);
+              if (!videos || !videos.length) {
                 await sock.sendMessage(from, { text: `❌ No results found for: _${query}_` }, { quoted: msg });
                 return;
               }
-              targetUrl = results[0].url;
-              songTitle = results[0].title || query;
+              targetUrl = videos[0].url;
+              songTitle = videos[0].title || query;
             }
             await sock.sendMessage(from, {
               text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
             }, { quoted: msg });
-            const { path: audioPath, title } = await downloader.downloadAudio(targetUrl);
-            const audioBuf = fs.readFileSync(audioPath);
-            try { fs.unlinkSync(audioPath); } catch {}
+            const apiRes = await axios.get(
+              `https://api.dreaded.site/api/ytmp3?url=${encodeURIComponent(targetUrl)}`,
+              { timeout: 60000 }
+            );
+            const data = apiRes.data;
+            const audioUrl =
+              data?.result?.download?.url ||
+              data?.result?.url           ||
+              data?.download?.url         ||
+              data?.url                   ||
+              data?.link                  ||
+              data?.mp3;
+            if (!audioUrl) {
+              await sock.sendMessage(from, { text: `❌ Download failed — API returned no audio link.` }, { quoted: msg });
+              return;
+            }
+            const title    = data?.result?.metadata?.title || data?.result?.title || data?.title || songTitle;
+            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
             await sock.sendMessage(from, {
-              audio:    audioBuf,
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
-              fileName: `${title || songTitle}.mp3`,
+              fileName,
             }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Download failed: ${e.message}` }, { quoted: msg });
@@ -2224,47 +2241,69 @@ async function startnexus() {
           return;
         }
 
-        // ── .song / .music — download via noobs-api.top ────────────────────
+        // ── .song / .music — download via api.dreaded.site ytmp3 ───────────
         if (_cmd === "song" || _cmd === "music") {
           const query = _args.trim();
           if (!query) {
             await sock.sendMessage(from, {
-              text: `🎵 Usage: \`${_pfx}${_cmd} <song name>\``,
+              text: `🎵 Usage: \`${_pfx}${_cmd} <song name or YouTube URL>\``,
             }, { quoted: msg });
             return;
           }
           await sock.sendMessage(from, {
-            text: `_Please wait, your download is in progress..._`,
+            text: `🔍 Searching for *${query}*...`,
           }, { quoted: msg });
           try {
-            const yts = require("yt-search");
-            const search = await yts(query);
-            const video  = search.videos[0];
-            if (!video) {
-              await sock.sendMessage(from, {
-                text: "❌ No results found for your query.",
-              }, { quoted: msg });
-              return;
+            let targetUrl = query;
+            let songTitle = query;
+            if (!/^https?:\/\//i.test(query)) {
+              const yts = require("yt-search");
+              const { videos } = await yts(query);
+              if (!videos || !videos.length) {
+                await sock.sendMessage(from, { text: "❌ No results found for your query." }, { quoted: msg });
+                return;
+              }
+              targetUrl = videos[0].url;
+              songTitle = videos[0].title || query;
             }
-            const safeTitle = video.title.replace(/[\\/:*?"<>|]/g, "");
-            const fileName  = `${safeTitle}.mp3`;
-            const apiURL    = `https://noobs-api.top/dipto/ytDl3?link=${encodeURIComponent(video.videoId)}&format=mp3`;
-            const response  = await axios.get(apiURL, { timeout: 60000 });
-            const data      = response.data;
-            if (!data?.downloadLink) {
+            await sock.sendMessage(from, {
+              text: `⬇️ Downloading: *${songTitle}*\n_Please wait a moment..._`,
+            }, { quoted: msg });
+            const apiRes = await axios.get(
+              `https://api.dreaded.site/api/ytmp3?url=${encodeURIComponent(targetUrl)}`,
+              { timeout: 60000 }
+            );
+            const data = apiRes.data;
+            const audioUrl =
+              data?.result?.download?.url ||
+              data?.result?.url           ||
+              data?.download?.url         ||
+              data?.url                   ||
+              data?.link                  ||
+              data?.mp3;
+            if (!audioUrl) {
               await sock.sendMessage(from, {
                 text: "❌ Failed to retrieve the MP3 download link.",
               }, { quoted: msg });
               return;
             }
+            const title    = data?.result?.metadata?.title || data?.result?.title || data?.title || songTitle;
+            const fileName = `${title.replace(/[\\/:*?"<>|]/g, "")}.mp3`;
+            // Send as playable audio and as downloadable document
             await sock.sendMessage(from, {
-              audio:    { url: data.downloadLink },
+              audio:    { url: audioUrl },
               mimetype: "audio/mpeg",
               fileName,
             }, { quoted: msg });
+            await sock.sendMessage(from, {
+              document: { url: audioUrl },
+              mimetype: "audio/mpeg",
+              fileName,
+              caption:  `🎵 *${title}*\n_Downloaded by NEXUS-MD_`,
+            }, { quoted: msg });
           } catch (e) {
             await sock.sendMessage(from, {
-              text: `❌ An error occurred while processing your request: ${e.message}`,
+              text: `❌ An error occurred: ${e.message}`,
             }, { quoted: msg });
           }
           return;
