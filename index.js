@@ -3247,43 +3247,118 @@ async function startnexus() {
           return;
         }
 
-        // ── .save — save a WhatsApp status to your DM (owner only) ──────────
-        if (_cmd === "save") {
+        // ── .save / .s — save a status or view-once to ALL admin DMs ────────
+        // Works on: status replies, view-once replies, any media reply
+        // Never triggers a "seen" receipt for view-once — download is silent.
+        if (_cmd === "save" || _cmd === "s") {
           if (!_isOwner) {
-            await sock.sendMessage(from, { text: "❌ This command is for the owner only." }, { quoted: msg });
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
-          const qMsg  = msg.quoted?.message || null;
-          const qChat = msg.quoted?.key?.remoteJid || "";
-          if (!qMsg || !qChat.includes("status@broadcast")) {
+          if (!msg.quoted) {
             await sock.sendMessage(from, {
-              text: "❌ Reply to a *status* message to save it.",
+              text: `💾 Usage: Reply to a *status* or *view-once* message with \`${_pfx}save\`\n\nThe media will be silently forwarded to all admin DMs.`,
             }, { quoted: msg });
             return;
           }
           try {
-            const qType = Object.keys(qMsg)[0];
-            const isImage = qType === "imageMessage";
-            const isVideo = qType === "videoMessage";
-            if (!isImage && !isVideo) {
-              await sock.sendMessage(from, {
-                text: "❌ Only image and video statuses can be saved.",
-              }, { quoted: msg });
+            const { admins: _svAdmins } = require("./config");
+            const _svOwners = (_svAdmins || []).map(n => `${n.replace(/\D/g, "")}@s.whatsapp.net`);
+            if (!_svOwners.length) {
+              await sock.sendMessage(from, { text: "❌ No admin numbers configured in ADMIN_NUMBERS." }, { quoted: msg });
               return;
             }
-            const mediaBuf = await downloadMediaMessage(
-              { key: msg.quoted.key, message: qMsg },
-              "buffer", {}
-            );
-            const caption = qMsg[qType]?.caption || "Saved from status";
-            if (isImage) {
-              await sock.sendMessage(senderJid, { image: mediaBuf, caption });
+
+            const _qRaw  = msg.quoted.message || {};
+            const _qChat = msg.quoted?.key?.remoteJid || "";
+            const _isStatus   = _qChat.includes("status@broadcast");
+            const _isViewOnce =
+              !!(_qRaw.viewOnceMessage || _qRaw.viewOnceMessageV2 || _qRaw.viewOnceMessageV2Extension);
+
+            // Unwrap view-once layers to get the inner media message
+            const _qInner =
+              _qRaw.viewOnceMessage?.message ||
+              _qRaw.viewOnceMessageV2?.message ||
+              _qRaw.viewOnceMessageV2Extension?.message ||
+              _qRaw;
+
+            const _qType  = getContentType(_qInner) || Object.keys(_qInner)[0] || "";
+            const _qMedia = _qInner[_qType] || {};
+
+            // Determine context label
+            const _svSource   = _isStatus ? "📸 Status" : _isViewOnce ? "👁 View-Once" : "📎 Media";
+            const _svSenderPh = (msg.quoted?.key?.participant || msg.quoted?.key?.remoteJid || "").split("@")[0].split(":")[0];
+            const _svTz       = settings.get("timezone") || "Africa/Nairobi";
+            const _svTime     = new Date().toLocaleTimeString("en-US", { timeZone: _svTz, hour: "2-digit", minute: "2-digit", hour12: true });
+            const _svHeader   =
+              `💾 *Saved by .save* — NEXUS-MD\n` +
+              `${"─".repeat(28)}\n` +
+              `📂 *Type:* ${_svSource}\n` +
+              `👤 *From:* +${_svSenderPh || "unknown"}\n` +
+              `🕐 *Time:* ${_svTime}\n`;
+
+            let _svSent = false;
+
+            if (["imageMessage", "videoMessage", "audioMessage"].includes(_qType)) {
+              // Download without triggering read receipt
+              const _svBuf = await downloadMediaMessage(
+                { key: msg.quoted.key, message: _qInner },
+                "buffer",
+                { reuploadRequest: sock.updateMediaMessage }
+              );
+              const _svCapSfx = _qMedia.caption ? `\n📝 _${_qMedia.caption}_` : "";
+
+              for (const _svOwnerJid of _svOwners) {
+                if (_svOwnerJid === senderJid) continue;
+                if (_qType === "imageMessage") {
+                  await sock.sendMessage(_svOwnerJid, {
+                    image:   _svBuf,
+                    caption: _svHeader + _svCapSfx,
+                  }).catch(() => {});
+                } else if (_qType === "videoMessage") {
+                  await sock.sendMessage(_svOwnerJid, {
+                    video:    _svBuf,
+                    caption:  _svHeader + _svCapSfx,
+                    mimetype: _qMedia.mimetype || "video/mp4",
+                  }).catch(() => {});
+                } else {
+                  await sock.sendMessage(_svOwnerJid, {
+                    audio:    _svBuf,
+                    mimetype: _qMedia.mimetype || "audio/ogg; codecs=opus",
+                    ptt:      !!_qMedia.ptt,
+                  }).catch(() => {});
+                  await sock.sendMessage(_svOwnerJid, { text: _svHeader + "🎵 _Audio_" }).catch(() => {});
+                }
+              }
+              _svSent = true;
+
             } else {
-              await sock.sendMessage(senderJid, { video: mediaBuf, caption });
+              // Text status
+              const _svText =
+                _qInner.conversation ||
+                _qInner.extendedTextMessage?.text ||
+                _qRaw.conversation ||
+                "";
+              if (_svText) {
+                for (const _svOwnerJid of _svOwners) {
+                  if (_svOwnerJid === senderJid) continue;
+                  await sock.sendMessage(_svOwnerJid, {
+                    text: _svHeader + `💬 _${_svText}_`,
+                  }).catch(() => {});
+                }
+                _svSent = true;
+              }
             }
-            await sock.sendMessage(from, { react: { text: "🦹‍♂️", key: msg.key } });
+
+            if (_svSent) {
+              await sock.sendMessage(from, { react: { text: "✅", key: msg.key } });
+            } else {
+              await sock.sendMessage(from, {
+                text: "❌ No supported media found in the quoted message.",
+              }, { quoted: msg });
+            }
           } catch (e) {
-            await sock.sendMessage(from, { text: `❌ Failed to save status: ${e.message}` }, { quoted: msg });
+            await sock.sendMessage(from, { text: `❌ Save failed: ${e.message}` }, { quoted: msg });
           }
           return;
         }
@@ -4271,7 +4346,7 @@ async function startnexus() {
             return;
           }
           try {
-            const _voMsg  = msg.quoted.message || {};
+            const _voMsg   = msg.quoted.message || {};
             const _voInner = _voMsg.viewOnceMessage?.message
               || _voMsg.viewOnceMessageV2?.message
               || _voMsg.viewOnceMessageV2Extension?.message
@@ -4284,20 +4359,44 @@ async function startnexus() {
             }
             const _voBuf = await downloadMediaMessage(
               { key: msg.quoted.key, message: _voInner },
-              "buffer", {}
+              "buffer", { reuploadRequest: sock.updateMediaMessage }
             );
+            const _voCaption = `👁️ *Retrieved by NEXUS-MD!*\n${_voMedia.caption || ""}`;
+
+            // 1 — Reveal in current chat
             if (_voType === "imageMessage") {
-              await sock.sendMessage(from, {
-                image:   _voBuf,
-                caption: `👁️ *Retrieved by NEXUS-MD!*\n${_voMedia.caption || ""}`,
-              }, { quoted: msg });
+              await sock.sendMessage(from, { image: _voBuf, caption: _voCaption }, { quoted: msg });
             } else if (_voType === "videoMessage") {
-              await sock.sendMessage(from, {
-                video:   _voBuf,
-                caption: `👁️ *Retrieved by NEXUS-MD!*\n${_voMedia.caption || ""}`,
-              }, { quoted: msg });
+              await sock.sendMessage(from, { video: _voBuf, caption: _voCaption }, { quoted: msg });
+            } else if (_voType === "audioMessage") {
+              await sock.sendMessage(from, { audio: _voBuf, mimetype: _voMedia.mimetype || "audio/ogg; codecs=opus", ptt: !!_voMedia.ptt }, { quoted: msg });
             } else {
               await sock.sendMessage(from, { text: "❌ Quoted message doesn't contain viewable image or video." }, { quoted: msg });
+              return;
+            }
+
+            // 2 — Silently forward to all admin DMs
+            const { admins: _vvAdmins } = require("./config");
+            const _vvSenderPh = (msg.quoted?.key?.participant || msg.quoted?.key?.remoteJid || "").split("@")[0].split(":")[0];
+            const _vvTz    = settings.get("timezone") || "Africa/Nairobi";
+            const _vvTime  = new Date().toLocaleTimeString("en-US", { timeZone: _vvTz, hour: "2-digit", minute: "2-digit", hour12: true });
+            const _vvLabel = _voType === "imageMessage" ? "📷 Photo" : _voType === "videoMessage" ? "🎥 Video" : "🎵 Audio";
+            const _vvHeader =
+              `👁 *View-Once Forwarded* — NEXUS-MD\n` +
+              `${"─".repeat(28)}\n` +
+              `${_vvLabel}\n` +
+              `👤 *From:* +${_vvSenderPh || "unknown"}\n` +
+              `🕐 *Time:* ${_vvTime}` +
+              (_voMedia.caption ? `\n📝 _${_voMedia.caption}_` : "");
+            for (const _vvNum of (_vvAdmins || [])) {
+              const _vvOwnerJid = `${_vvNum.replace(/\D/g, "")}@s.whatsapp.net`;
+              if (_vvOwnerJid === senderJid) continue;
+              if (_voType === "imageMessage")
+                await sock.sendMessage(_vvOwnerJid, { image: _voBuf, caption: _vvHeader }).catch(() => {});
+              else if (_voType === "videoMessage")
+                await sock.sendMessage(_vvOwnerJid, { video: _voBuf, caption: _vvHeader, mimetype: _voMedia.mimetype || "video/mp4" }).catch(() => {});
+              else
+                await sock.sendMessage(_vvOwnerJid, { audio: _voBuf, mimetype: _voMedia.mimetype || "audio/ogg; codecs=opus", ptt: !!_voMedia.ptt }).catch(() => {});
             }
           } catch (e) {
             await sock.sendMessage(from, { text: `❌ Retrieve failed: ${e.message}` }, { quoted: msg });
