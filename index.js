@@ -2631,105 +2631,6 @@ async function startnexus() {
           return;
         }
 
-        // ── .savestatus — save a specific status to owner DM (reply to a status) ──
-        if (_cmd === "savestatus" || _cmd === "statusaver" || _cmd === "savest") {
-          if (!_isOwner) {
-            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
-            return;
-          }
-          if (!msg.quoted) {
-            await sock.sendMessage(from, {
-              text:
-                `💾 *Save Status*\n\n` +
-                `Reply to any status update with \`${_pfx}savestatus\` to save it to your DM.\n\n` +
-                `Works with: photos, videos, audio and text statuses.\n\n` +
-                `Usage:\n` +
-                `• Reply to a status → \`${_pfx}savestatus\``,
-            }, { quoted: msg });
-            return;
-          }
-          try {
-            const { admins: _ssCmdOwners } = require("./config");
-            if (!_ssCmdOwners?.length) {
-              await sock.sendMessage(from, { text: "❌ No admin number configured." }, { quoted: msg });
-              return;
-            }
-            const _ssCmdMsg   = msg.quoted.message || {};
-            const _ssCmdNorm  = normalizeMessageContent(_ssCmdMsg) || {};
-            const _ssCmdMtype = getContentType(_ssCmdNorm) || Object.keys(_ssCmdMsg)[0] || "";
-            const _ssCmdSenderJid = msg.quoted?.key?.participant || msg.quoted?.key?.remoteJid || "";
-            const _ssCmdPhone     = _ssCmdSenderJid.split("@")[0].split(":")[0];
-            const _ssCmdTz   = settings.get("timezone") || "Africa/Nairobi";
-            const _ssCmdTime = new Date().toLocaleTimeString("en-US", { timeZone: _ssCmdTz, hour: "2-digit", minute: "2-digit", hour12: true });
-            const _ssCmdHeader =
-              `💾 *Status Saved* — NEXUS-MD\n` +
-              `${"─".repeat(28)}\n` +
-              `👤 *From:* +${_ssCmdPhone}\n` +
-              `🕐 *Time:* ${_ssCmdTime}\n`;
-            let _ssCmdSent = false;
-            for (const _ssCmdNum of _ssCmdOwners) {
-              const _ssCmdOwnerJid = `${_ssCmdNum.replace(/\D/g, "")}@s.whatsapp.net`;
-              if (_ssCmdMtype === "imageMessage") {
-                const _ssCmdBuf = await downloadMediaMessage(
-                  { key: msg.quoted.key, message: _ssCmdNorm },
-                  "buffer", { reuploadRequest: sock.updateMediaMessage }
-                ).catch(() => null);
-                if (!_ssCmdBuf) continue;
-                const _ssCmdCap = _ssCmdNorm.imageMessage?.caption || "";
-                await sock.sendMessage(_ssCmdOwnerJid, {
-                  image: _ssCmdBuf,
-                  caption: _ssCmdHeader + (_ssCmdCap ? `📝 _${_ssCmdCap}_` : ""),
-                }).catch(() => {});
-                _ssCmdSent = true;
-              } else if (_ssCmdMtype === "videoMessage") {
-                const _ssCmdBuf = await downloadMediaMessage(
-                  { key: msg.quoted.key, message: _ssCmdNorm },
-                  "buffer", { reuploadRequest: sock.updateMediaMessage }
-                ).catch(() => null);
-                if (!_ssCmdBuf) continue;
-                const _ssCmdCap = _ssCmdNorm.videoMessage?.caption || "";
-                await sock.sendMessage(_ssCmdOwnerJid, {
-                  video:    _ssCmdBuf,
-                  caption:  _ssCmdHeader + (_ssCmdCap ? `📝 _${_ssCmdCap}_` : ""),
-                  mimetype: _ssCmdNorm.videoMessage?.mimetype || "video/mp4",
-                }).catch(() => {});
-                _ssCmdSent = true;
-              } else if (_ssCmdMtype === "audioMessage") {
-                const _ssCmdBuf = await downloadMediaMessage(
-                  { key: msg.quoted.key, message: _ssCmdNorm },
-                  "buffer", { reuploadRequest: sock.updateMediaMessage }
-                ).catch(() => null);
-                if (!_ssCmdBuf) continue;
-                await sock.sendMessage(_ssCmdOwnerJid, {
-                  audio:    _ssCmdBuf,
-                  mimetype: _ssCmdNorm.audioMessage?.mimetype || "audio/ogg; codecs=opus",
-                  ptt:      !!_ssCmdNorm.audioMessage?.ptt,
-                }).catch(() => {});
-                await sock.sendMessage(_ssCmdOwnerJid, { text: _ssCmdHeader + "🎵 _Audio status_" }).catch(() => {});
-                _ssCmdSent = true;
-              } else {
-                const _ssCmdText =
-                  _ssCmdNorm.conversation ||
-                  _ssCmdNorm.extendedTextMessage?.text ||
-                  _ssCmdMsg.conversation || "";
-                if (!_ssCmdText) continue;
-                await sock.sendMessage(_ssCmdOwnerJid, {
-                  text: _ssCmdHeader + `💬 _${_ssCmdText}_`,
-                }).catch(() => {});
-                _ssCmdSent = true;
-              }
-            }
-            await sock.sendMessage(from, {
-              text: _ssCmdSent
-                ? `✅ Status saved to your DM successfully!`
-                : `❌ Could not download media from the quoted message.`,
-            }, { quoted: msg });
-          } catch (_ssCmdErr) {
-            await sock.sendMessage(from, { text: `❌ Failed: ${_ssCmdErr.message}` }, { quoted: msg });
-          }
-          return;
-        }
-
         // ── .feature ───────────────────────────────────────────────────────
         // Generic toggle for any boolean setting key
         if (_cmd === "feature") {
@@ -3537,17 +3438,18 @@ async function startnexus() {
           return;
         }
 
-        // ── .save / .s — save a status or view-once to ALL admin DMs ────────
+        // ── .s / .save / .savestatus — save a status or view-once to ALL admin DMs ────────
         // Works on: status replies, view-once replies, any media reply
         // Never triggers a "seen" receipt for view-once — download is silent.
-        if (_cmd === "save" || _cmd === "s") {
+        // Aliases: .s  .save  .savestatus  .savest  .statusaver
+        if (_cmd === "save" || _cmd === "s" || _cmd === "savestatus" || _cmd === "savest" || _cmd === "statusaver") {
           if (!_isOwner) {
             await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
             return;
           }
           if (!msg.quoted) {
             await sock.sendMessage(from, {
-              text: `💾 Usage: Reply to a *status* or *view-once* message with \`${_pfx}save\`\n\nThe media will be silently forwarded to all admin DMs.`,
+              text: `💾 *Save Status / Media*\n\nReply to any status update or view-once message, then send \`${_pfx}s\`\n\nAliases: \`${_pfx}s\` · \`${_pfx}save\` · \`${_pfx}savestatus\`\n\nThe media is silently forwarded to all admin DMs.`,
             }, { quoted: msg });
             return;
           }
@@ -3581,7 +3483,7 @@ async function startnexus() {
             const _svTz       = settings.get("timezone") || "Africa/Nairobi";
             const _svTime     = new Date().toLocaleTimeString("en-US", { timeZone: _svTz, hour: "2-digit", minute: "2-digit", hour12: true });
             const _svHeader   =
-              `💾 *Saved by .save* — NEXUS-MD\n` +
+              `💾 *Saved by .s* — NEXUS-MD\n` +
               `${"─".repeat(28)}\n` +
               `📂 *Type:* ${_svSource}\n` +
               `👤 *From:* +${_svSenderPh || "unknown"}\n` +
@@ -4121,8 +4023,8 @@ async function startnexus() {
           return;
         }
 
-        // ── .sticker / .s — convert quoted image or video to sticker ─────────
-        if (_cmd === "sticker" || _cmd === "s") {
+        // ── .sticker — convert quoted image or video to sticker ─────────
+        if (_cmd === "sticker") {
           const quotedMsg = msg.quoted?.message || null;
           const quotedType = quotedMsg ? Object.keys(quotedMsg)[0] : null;
           const isImage = quotedType === "imageMessage";
@@ -5850,12 +5752,18 @@ async function startnexus() {
               `┃ ▶ ${_pfx}pindl\n` +
               `┃ ▶ ${_pfx}pinterest\n` +
               `┃ ▶ ${_pfx}sticker\n` +
-              `┃ ▶ ${_pfx}s\n` +
               `┃ ▶ ${_pfx}convert\n` +
               `┃ ▶ ${_pfx}v\n` +
               `┃ ▶ ${_pfx}vo\n` +
-              `┃ ▶ ${_pfx}viewonce\n` +
-              `┃ ▶ ${_pfx}reveal\n` +
+              `┃ ▶ ${_pfx}vv — reveal a quoted view-once\n` +
+              `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
+              `╭━━━〔 📸 *STATUS TOOLS* 〕━━━⬣\n` +
+              `┃ 💾 ${_pfx}s — save quoted status/media to DM\n` +
+              `┃ 💾 ${_pfx}save — alias of ${_pfx}s\n` +
+              `┃ 💾 ${_pfx}savestatus — alias of ${_pfx}s\n` +
+              `┃ 👁 ${_pfx}autoview on/off — auto-view statuses\n` +
+              `┃ ❤️ ${_pfx}autolike on/off — auto-react to statuses\n` +
+              `┃ 🔍 ${_pfx}viewonce on/off — auto-reveal view-once msgs\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 🧰 *UTILITIES* 〕━━━⬣\n` +
               `┃ ◉ ${_pfx}pp\n` +
@@ -5928,7 +5836,6 @@ async function startnexus() {
               `┃ ⛔ ${_pfx}antidelete\n` +
               `┃ ⛔ ${_pfx}anticall\n` +
               `┃ ⛔ ${_pfx}alwaysonline\n` +
-              `┃ ⛔ ${_pfx}voreveal\n` +
               `┃ 👻 ${_pfx}ghost — hide blue ticks (aliases: ${_pfx}ghostmode, ${_pfx}hidebluetick)\n` +
               `┃ 🕵️ ${_pfx}ghoststatus — stealth status view (aliases: ${_pfx}stealthstatus)\n` +
               `┃ 🚫 ${_pfx}antistatusmention — aliases: ${_pfx}gsm, ${_pfx}asm\n` +
