@@ -2367,7 +2367,7 @@ async function startnexus() {
         if (_cmd === "crt" || _cmd === "creator") {
           try {
             const _bannerPath = path.join(process.cwd(), "assets", "repo-banner.jpg");
-            const _drillPath  = path.join(process.cwd(), "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) [dQw4w9WgXcQ].mp3");
+            const _drillPath  = path.join(process.cwd(), "attached_assets", "ignatius_and_Neymar__1774449663795.mp3");
             const _caption =
               `╔══════════════════════════╗\n` +
               `║   🔥 *IGNATIUS DRILL* 🔥   ║\n` +
