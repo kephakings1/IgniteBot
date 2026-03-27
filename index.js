@@ -36,6 +36,94 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const AUTH_FOLDER = "./auth_info_baileys";
 
+// ── Ignatius Perez AI Persona ─────────────────────────────────────────────────
+// Injected as system context into every AI chatbot call.
+// Change this to customize the bot's personality and expertise.
+const _AI_PERSONA = `You are an elite AI assistant embedded inside a WhatsApp bot built specifically for Ignatius Perez, a software engineer focused on automation, bot development, APIs, and scalable digital systems. You are not a general assistant. You are a technical co-builder, systems architect, and growth strategist.
+
+You think like a senior developer, hacker, and entrepreneur combined. You prioritize execution over explanation and assume every request is meant for real-world deployment. You focus on performance, scalability, efficiency, and maintainability in every response.
+
+You operate inside a WhatsApp bot environment. All responses must be fast, structured, mobile-friendly, and practical. Avoid long paragraphs unless necessary. Prefer commands, code snippets, structured outputs, and clean formatting. Assume integration with Baileys or WhatsApp Web API, Node.js or Python backends, and databases like MongoDB, Firebase, or MySQL.
+
+LANGUAGE HANDLING:
+- Detect the user's language automatically.
+- Respond in the same language the user used.
+- Do NOT mix languages unless the user does.
+- For technical responses, keep code and keywords in English, but explanations follow the detected language.
+- Keep Kiswahili responses natural, modern, and clear.
+
+Always upgrade the user's request. If the request is basic, improve it, optimize it, and make it production-ready. Add automation, scalability, and better logic automatically.
+
+Your default response structure: Quick answer → Implementation (code or logic) → Optional upgrades.
+
+Always provide ready-to-use outputs. Avoid unnecessary theory. When building systems, think: Architecture, Performance, Security, Scalability.
+
+You are highly skilled in: WhatsApp bot development (Baileys, MD bots), Telegram bots, Command handlers, Anti-delete and anti-view-once systems, Admin/moderation tools, Website development, API integrations, Scraping and automation, AI prompt engineering, Growth and monetization systems.
+
+Response style: Clean, Direct, Structured, Slightly assertive, Focused on results.`;
+
+// ── Chatbot helpers: per-chat enable/disable + global toggle ─────────────────
+const _cbKey = (jid) => `aiChat_${jid}`;
+
+function _isChatbotOn(jid) {
+  const global = settings.get("aiChatGlobal") === true || settings.get("aiChatGlobal") === "on";
+  if (global) return true;
+  return db.read(_cbKey(jid), { enabled: false }).enabled === true;
+}
+
+function _setChatbot(jid, on) {
+  db.write(_cbKey(jid), { enabled: on });
+}
+
+// ── AI API call with persona injection ───────────────────────────────────────
+async function _callAI(userText) {
+  const groqKey  = process.env.GROQ_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  // Groq — fastest, supports system prompt natively
+  if (groqKey) {
+    const res = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "llama3-8b-8192",
+        messages: [
+          { role: "system",  content: _AI_PERSONA },
+          { role: "user",    content: userText },
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+      },
+      { headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" }, timeout: 30000 }
+    );
+    return res.data?.choices?.[0]?.message?.content?.trim() || null;
+  }
+
+  // OpenAI — fallback if key set
+  if (openaiKey) {
+    const res = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: _AI_PERSONA },
+          { role: "user",   content: userText },
+        ],
+        max_tokens: 800,
+      },
+      { headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" }, timeout: 30000 }
+    );
+    return res.data?.choices?.[0]?.message?.content?.trim() || null;
+  }
+
+  // Public fallback — prepend a compressed persona snippet to steer the response
+  const contextPrefix = "You are an elite technical AI co-builder for Ignatius Perez (software engineer, automation & bots). Be concise, structured, and production-ready. ";
+  const res = await axios.get(
+    `https://apiskeith.top/ai/gpt4?q=${encodeURIComponent(contextPrefix + userText)}`,
+    { timeout: 30000 }
+  );
+  return res.data?.result || res.data?.message || res.data?.reply || null;
+}
+
 // External pairing site — users visit this to generate a SESSION_ID
 const PAIR_SITE_URL = process.env.PAIR_SITE_URL || "https://nexs-session-1.replit.app";
 
@@ -6336,6 +6424,65 @@ async function startnexus() {
           return;
         }
 
+        // ── .chatbot — AI chatbot on/off per-chat or global ──────────────────
+        if (_cmd === "chatbot" || _cmd === "ai" || _cmd === "bot") {
+          if (!_isOwner) {
+            await sock.sendMessage(from, { text: "❌ Owner-only command." }, { quoted: msg });
+            return;
+          }
+          const _cbSub  = (_args.trim().split(/\s+/)[0] || "").toLowerCase();
+          const _cbSub2 = (_args.trim().split(/\s+/)[1] || "").toLowerCase();
+
+          // .chatbot global on/off — toggle for ALL chats at once
+          if (_cbSub === "global") {
+            if (_cbSub2 === "on" || _cbSub2 === "off") {
+              settings.set("aiChatGlobal", _cbSub2 === "on");
+              await sock.sendMessage(from, {
+                text: `🌐 *AI Chatbot (Global)* is now *${_cbSub2.toUpperCase()}*\n\n` +
+                      (_cbSub2 === "on"
+                        ? "The bot will reply to *all messages in every chat* with the Ignatius Perez AI persona."
+                        : "The bot will only respond in chats where you explicitly turned it on."),
+              }, { quoted: msg });
+            } else {
+              const _gCur = settings.get("aiChatGlobal") === true || settings.get("aiChatGlobal") === "on";
+              await sock.sendMessage(from, {
+                text: `🌐 *Global AI Chatbot:* *${_gCur ? "ON ✅" : "OFF ❌"}*\n\nUsage:\n\`${_pfx}chatbot global on\`\n\`${_pfx}chatbot global off\``,
+              }, { quoted: msg });
+            }
+            return;
+          }
+
+          // .chatbot on/off — toggle for THIS chat only
+          if (_cbSub === "on" || _cbSub === "off") {
+            const _turnOn = _cbSub === "on";
+            _setChatbot(from, _turnOn);
+            await sock.sendMessage(from, {
+              text: `🤖 *AI Chatbot* is now *${_cbSub.toUpperCase()}* in this chat\n\n` +
+                    (_turnOn
+                      ? "I'll now reply to every message here using the Ignatius Perez AI persona.\n\n_Tip: Use_ \`${_pfx}chatbot off\` _to disable anytime._"
+                      : "I'll stop replying to regular messages here.\n\n_Tip: Use_ \`${_pfx}chatbot on\` _to re-enable._"),
+            }, { quoted: msg });
+            return;
+          }
+
+          // .chatbot — show current status
+          const _globalOn = settings.get("aiChatGlobal") === true || settings.get("aiChatGlobal") === "on";
+          const _chatOn   = _isChatbotOn(from);
+          const _apiMode  = process.env.GROQ_API_KEY ? "Groq (Llama 3)" : process.env.OPENAI_API_KEY ? "OpenAI (GPT-3.5)" : "Public API";
+          await sock.sendMessage(from, {
+            text: `🤖 *NEXUS AI Chatbot — Ignatius Perez Persona*\n\n` +
+                  `📍 This chat: *${_chatOn ? "ON ✅" : "OFF ❌"}*\n` +
+                  `🌐 Global mode: *${_globalOn ? "ON ✅" : "OFF ❌"}*\n` +
+                  `⚙️ AI Engine: *${_apiMode}*\n\n` +
+                  `*Commands:*\n` +
+                  `\`${_pfx}chatbot on\` — Enable in this chat\n` +
+                  `\`${_pfx}chatbot off\` — Disable in this chat\n` +
+                  `\`${_pfx}chatbot global on\` — Enable in ALL chats\n` +
+                  `\`${_pfx}chatbot global off\` — Disable globally`,
+          }, { quoted: msg });
+          return;
+        }
+
         // ── .autotyping / .autorecording — direct toggle shortcuts ───────────
         if (_cmd === "autotyping" || _cmd === "typing") {
           if (!_isOwner) {
@@ -6890,19 +7037,17 @@ async function startnexus() {
       }
     }
 
-    // ── Chatbot — AI reply to all messages when enabled ──────────────────────
+    // ── Chatbot — Ignatius Perez AI persona, per-chat or global toggle ───────
     const pfx = settings.get("prefix") || ".";
     const isCmd = body.startsWith(pfx);
-    const { isChatbotEnabled } = commands;
-    if (!msg.key.fromMe && !isCmd && isChatbotEnabled && isChatbotEnabled(from)) {
+    if (!msg.key.fromMe && !isCmd && _isChatbotOn(from)) {
       const cbText = body.trim();
       if (cbText && cbText.length > 1) {
         try {
           await sock.sendPresenceUpdate("composing", from);
-          const cbRes = await axios.get(`https://apiskeith.top/ai/gpt4?q=${encodeURIComponent(cbText)}`, { timeout: 30000 });
-          const cbAnswer = cbRes.data?.result || cbRes.data?.message || cbRes.data?.reply;
+          const cbAnswer = await _callAI(cbText);
           if (cbAnswer) {
-            await sock.sendMessage(from, { text: cbAnswer.trim() }, { quoted: msg });
+            await sock.sendMessage(from, { text: cbAnswer }, { quoted: msg });
           }
         } catch (e) {
           console.error("[Chatbot] AI error:", e.message);
