@@ -5660,6 +5660,358 @@ async function startnexus() {
           return;
         }
 
+        // ── .truth — truth or dare (truth) ─────────────────────────────────
+        if (_cmd === "truth") {
+          const _truths = [
+            "What is the most embarrassing thing you've ever done?",
+            "Have you ever lied to your best friend? What was it about?",
+            "What is your biggest fear?",
+            "Who was your first crush and do they know?",
+            "What is the biggest lie you have ever told?",
+            "Have you ever cheated on a test or game?",
+            "What is the most childish thing you still do?",
+            "What is one thing you would never want your parents to find out?",
+            "Have you ever sent a message to the wrong person? What did it say?",
+            "What is something you have never told anyone?",
+            "Have you ever pretended to like a gift when you actually hated it?",
+            "What is the worst advice you have ever given?",
+            "Have you ever blamed someone else for something you did?",
+            "What is your most embarrassing memory from school?",
+            "Have you ever ghosted someone? Why?",
+            "What is the weirdest dream you have ever had?",
+            "What is the pettiest reason you stopped talking to someone?",
+            "Have you ever eaten food off the floor and not told anyone?",
+            "What is the most ridiculous thing you ever did to impress someone?",
+            "If you could take back one thing you said to someone, what would it be?",
+          ];
+          const _t = _truths[Math.floor(Math.random() * _truths.length)];
+          await sock.sendMessage(from, {
+            text: `🎯 *TRUTH*\n\n❓ ${_t}`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .dare — truth or dare (dare) ────────────────────────────────────
+        if (_cmd === "dare") {
+          const _dares = [
+            "Send a voice note singing a nursery rhyme.",
+            "Change your WhatsApp status to 'I love NEXUS-MD bot' for 1 hour.",
+            "Send the last photo in your gallery to this chat.",
+            "Write 'I am a potato 🥔' as your next 3 replies.",
+            "Send a selfie with the most ridiculous face you can make.",
+            "Speak only in questions for the next 5 minutes.",
+            "Send a compliment to the last 3 people you texted.",
+            "Do 10 push-ups and send proof.",
+            "Call someone by the wrong name for the next 10 minutes.",
+            "Send a voice note talking in a funny accent.",
+            "Let someone else write your next WhatsApp status.",
+            "Send an embarrassing emoji combination as your reply for the next 5 messages.",
+            "Write a 2-line poem about the person who challenged you.",
+            "Send a 'good morning' message to 5 contacts right now.",
+            "Share your most embarrassing photo.",
+            "Reply to every message in this chat with 'as you wish 🧙' for the next 10 minutes.",
+            "Sing happy birthday to an imaginary friend in a voice note.",
+            "Describe your love life using only food emojis.",
+            "Send a dramatic monologue about your favourite food.",
+            "Act like a news anchor and report what you're doing right now in a voice note.",
+          ];
+          const _d = _dares[Math.floor(Math.random() * _dares.length)];
+          await sock.sendMessage(from, {
+            text: `🎯 *DARE*\n\n🔥 ${_d}`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .wyr — would you rather ─────────────────────────────────────────
+        if (_cmd === "wyr" || _cmd === "wouldyourather") {
+          const _wyrs = [
+            ["Be able to fly", "Be able to become invisible"],
+            ["Always be 10 minutes late", "Always be 20 minutes early"],
+            ["Have free Wi-Fi everywhere", "Have free food everywhere"],
+            ["Live without music", "Live without social media"],
+            ["Be rich and unknown", "Be famous and broke"],
+            ["Have a rewind button for your life", "Have a pause button for your life"],
+            ["Speak every language", "Play every instrument"],
+            ["Never eat sugar again", "Never eat salt again"],
+            ["Always have to sing instead of speaking", "Always have to dance instead of walking"],
+            ["Know when you will die", "Know how you will die"],
+            ["Have unlimited battery on all devices", "Have free unlimited data forever"],
+            ["Be able to read minds", "Be able to control time"],
+            ["Have a photographic memory", "Have the ability to forget anything you choose"],
+            ["Live in the past", "Live in the future"],
+            ["Only be able to whisper", "Only be able to shout"],
+          ];
+          const _w = _wyrs[Math.floor(Math.random() * _wyrs.length)];
+          await sock.sendMessage(from, {
+            text: `🤔 *WOULD YOU RATHER...*\n\n🅰️ ${_w[0]}\n\n*— OR —*\n\n🅱️ ${_w[1]}`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .compliment — send a compliment ─────────────────────────────────
+        if (_cmd === "compliment") {
+          const _compliments = [
+            "You have the ability to make everyone around you feel better just by being there! 🌟",
+            "Your kindness is like a warm blanket on a cold day. ❤️",
+            "You have such a unique perspective that makes conversations so much more interesting! 💡",
+            "The way you handle challenges is truly inspiring! 💪",
+            "You bring so much joy and positivity to everyone you meet! ☀️",
+            "Your creativity is absolutely remarkable! 🎨",
+            "You have a heart of gold and it shows in everything you do! 💛",
+            "Your smile has the power to light up any room! 😊",
+            "You are more talented than you realize! 🏆",
+            "The world is genuinely a better place with you in it! 🌍",
+            "You have an amazing ability to see the best in people! 🌺",
+            "Your dedication and hard work are truly something to admire! 🚀",
+            "You make difficult things look effortless! ✨",
+            "Your personality is one in a million! 💎",
+            "You are the kind of person songs are written about! 🎵",
+          ];
+          const _target = msg.quoted ? `@${msg.quoted.sender.split("@")[0]}` : (msg.mentionedJids?.[0] ? `@${msg.mentionedJids[0].split("@")[0]}` : "you");
+          const _c = _compliments[Math.floor(Math.random() * _compliments.length)];
+          const _mentions = msg.quoted ? [msg.quoted.sender] : (msg.mentionedJids?.[0] ? [msg.mentionedJids[0]] : []);
+          await sock.sendMessage(from, {
+            text: `💐 *Compliment for ${_target}*\n\n${_c}`,
+            mentions: _mentions
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .roast — playful roast ───────────────────────────────────────────
+        if (_cmd === "roast") {
+          const _roasts = [
+            "You're the human equivalent of a participation trophy. 🏆",
+            "You're not stupid; you just have bad luck thinking. 🍀",
+            "I'd roast you harder, but my mum said I'm not allowed to burn trash. 🗑️",
+            "You're the reason the gene pool needs a lifeguard. 🏊",
+            "I'd explain it to you, but I left my crayons at home. 🖍️",
+            "Your secrets are always safe with me. I never listen when you talk. 😴",
+            "I thought of you today. It reminded me to take out the trash. 🗑️",
+            "You're proof that evolution can go in reverse. 🦎",
+            "If I had a dollar for every time you said something smart, I'd be broke. 💸",
+            "You're like a cloud — when you disappear, it's a beautiful day. ☀️",
+            "Even autocorrect can't fix what you said. 📱",
+            "You bring everyone so much joy — when you leave the room. 🚪",
+            "I'm not saying you're boring, but even SpongeBob would fall asleep talking to you. 🧽",
+            "You're like a software update — nobody wants you, but you keep showing up. 💻",
+            "Science says talking to plants helps them grow. Maybe that's why talking to you stunts my growth. 🌱",
+          ];
+          const _target = msg.quoted ? `@${msg.quoted.sender.split("@")[0]}` : (msg.mentionedJids?.[0] ? `@${msg.mentionedJids[0].split("@")[0]}` : "you");
+          const _r = _roasts[Math.floor(Math.random() * _roasts.length)];
+          const _rMentions = msg.quoted ? [msg.quoted.sender] : (msg.mentionedJids?.[0] ? [msg.mentionedJids[0]] : []);
+          await sock.sendMessage(from, {
+            text: `🔥 *Roast for ${_target}*\n\n${_r}\n\n_Just for laughs! 😂_`,
+            mentions: _rMentions
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .ship — love compatibility meter ────────────────────────────────
+        if (_cmd === "ship" || _cmd === "lovemeter" || _cmd === "love") {
+          const _p1 = (_args || "").trim().split(/\s+and\s+|\s+&\s+|\s+\+\s+/i);
+          const _name1 = _p1[0]?.trim() || msg.pushName || "Person 1";
+          const _name2 = _p1[1]?.trim() || (msg.quoted ? msg.quoted.sender.split("@")[0] : "Person 2");
+          const _seed  = (_name1 + _name2).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+          const _pct   = ((_seed * 7 + 13) % 101);
+          const _bars  = Math.round(_pct / 10);
+          const _bar   = "❤️".repeat(_bars) + "🖤".repeat(10 - _bars);
+          let _verdict;
+          if (_pct < 20) _verdict = "💔 No chemistry at all...";
+          else if (_pct < 40) _verdict = "😐 Barely compatible";
+          else if (_pct < 60) _verdict = "😊 Some potential!";
+          else if (_pct < 80) _verdict = "😍 Great match!";
+          else _verdict = "💕 Soulmates! Perfect match!";
+          await sock.sendMessage(from, {
+            text: `💘 *LOVE METER*\n\n` +
+                  `👤 *${_name1}*\n` +
+                  `💞 ${_bar}\n` +
+                  `👤 *${_name2}*\n\n` +
+                  `❤️ *Compatibility: ${_pct}%*\n\n` +
+                  `${_verdict}`
+          }, { quoted: msg });
+          return;
+        }
+
+        // ── .catfact — random cat fact ───────────────────────────────────────
+        if (_cmd === "catfact" || _cmd === "cat") {
+          try {
+            const _cfRes = await axios.get("https://catfact.ninja/fact", { timeout: 8000 });
+            await sock.sendMessage(from, {
+              text: `🐱 *Cat Fact*\n\n${_cfRes.data.fact}`
+            }, { quoted: msg });
+          } catch {
+            const _offline = ["Cats sleep 12-16 hours per day.", "A group of cats is called a clowder.", "Cats can make over 100 vocal sounds.", "Cats have 32 muscles in each ear.", "A cat's nose print is unique, like a human fingerprint."];
+            await sock.sendMessage(from, { text: `🐱 *Cat Fact*\n\n${_offline[Math.floor(Math.random() * _offline.length)]}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .dogfact — random dog fact ───────────────────────────────────────
+        if (_cmd === "dogfact" || _cmd === "dog") {
+          try {
+            const _dfRes = await axios.get("https://dogapi.dog/api/v2/facts", { timeout: 8000 });
+            const _dfFact = _dfRes.data?.data?.[0]?.attributes?.body || null;
+            if (!_dfFact) throw new Error("no fact");
+            await sock.sendMessage(from, { text: `🐶 *Dog Fact*\n\n${_dfFact}` }, { quoted: msg });
+          } catch {
+            const _offline = ["Dogs have a sense of time and miss their owners when they're gone.", "A dog's nose print is unique like a human fingerprint.", "Dogs can understand up to 250 words and gestures.", "Dogs dream like humans — they have REM sleep cycles.", "The Basenji is the only breed of dog that cannot bark."];
+            await sock.sendMessage(from, { text: `🐶 *Dog Fact*\n\n${_offline[Math.floor(Math.random() * _offline.length)]}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .urban — urban dictionary definition ─────────────────────────────
+        if (_cmd === "urban" || _cmd === "ud") {
+          const _term = (_args || "").trim();
+          if (!_term) {
+            await sock.sendMessage(from, { text: `📖 *Urban Dictionary*\n\nUsage: \`${_pfx}urban <word or phrase>\`\nExample: \`${_pfx}urban slay\`` }, { quoted: msg });
+            return;
+          }
+          try {
+            const _udRes = await axios.get(`https://api.urbandictionary.com/v0/define?term=${encodeURIComponent(_term)}`, { timeout: 10000 });
+            const _def   = _udRes.data?.list?.[0];
+            if (!_def) {
+              await sock.sendMessage(from, { text: `❌ No definition found for *${_term}*.` }, { quoted: msg });
+              return;
+            }
+            const _clean = (s) => s.replace(/\[|\]/g, "").slice(0, 600);
+            await sock.sendMessage(from, {
+              text: `📖 *Urban Dictionary: ${_def.word}*\n\n` +
+                    `📝 *Definition:*\n${_clean(_def.definition)}\n\n` +
+                    `💬 *Example:*\n${_clean(_def.example || "N/A")}\n\n` +
+                    `👍 ${_def.thumbs_up} | 👎 ${_def.thumbs_down}`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Could not fetch definition: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .currency — currency converter ────────────────────────────────────
+        if (_cmd === "currency" || _cmd === "convert" || _cmd === "fx") {
+          const _cParts = (_args || "").trim().split(/\s+/);
+          if (_cParts.length < 3 || isNaN(_cParts[0])) {
+            await sock.sendMessage(from, {
+              text: `💱 *Currency Converter*\n\nUsage: \`${_pfx}currency <amount> <FROM> <TO>\`\n\nExamples:\n• \`${_pfx}currency 100 USD KES\`\n• \`${_pfx}currency 50 EUR GBP\`\n• \`${_pfx}currency 1 BTC USD\``
+            }, { quoted: msg });
+            return;
+          }
+          const _amt  = parseFloat(_cParts[0]);
+          const _from = _cParts[1].toUpperCase();
+          const _to   = _cParts[2].toUpperCase();
+          try {
+            await sock.sendMessage(from, { text: `💱 Converting ${_amt} ${_from} → ${_to}...` }, { quoted: msg });
+            const _fxRes = await axios.get(`https://api.exchangerate-api.com/v4/latest/${_from}`, { timeout: 10000 });
+            const _rate  = _fxRes.data?.rates?.[_to];
+            if (!_rate) throw new Error(`Unknown currency pair: ${_from}/${_to}`);
+            const _result = (_amt * _rate).toFixed(4);
+            const _rateStr = _rate.toFixed(6);
+            await sock.sendMessage(from, {
+              text: `╔══════════════════════╗\n` +
+                    `║ 💱 *CURRENCY CONVERTER*\n` +
+                    `╚══════════════════════╝\n\n` +
+                    `💵 *Amount:* ${_amt} ${_from}\n` +
+                    `🔄 *Rate:* 1 ${_from} = ${_rateStr} ${_to}\n` +
+                    `💰 *Result:* *${_result} ${_to}*\n\n` +
+                    `_Powered by ExchangeRate-API_`
+            }, { quoted: msg });
+          } catch (e) {
+            await sock.sendMessage(from, { text: `❌ Could not convert: ${e.message}` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .percentage — percentage calculator ──────────────────────────────
+        if (_cmd === "percentage" || _cmd === "pct" || _cmd === "percent") {
+          const _pArgs = (_args || "").trim().split(/\s+/);
+          if (_pArgs.length < 1 || !_pArgs[0]) {
+            await sock.sendMessage(from, {
+              text: `🔢 *Percentage Calculator*\n\nUsage:\n• \`${_pfx}percentage 25 of 200\` → what is 25% of 200?\n• \`${_pfx}percentage 50 out of 200\` → 50 is what % of 200?\n• \`${_pfx}percentage increase 100 to 150\` → percentage increase`
+            }, { quoted: msg });
+            return;
+          }
+          try {
+            let _pResult = "";
+            const _fullArg = _args.trim().toLowerCase();
+            if (_fullArg.includes("increase") || _fullArg.includes("decrease")) {
+              const _nums = _fullArg.match(/[\d.]+/g)?.map(Number);
+              if (_nums?.length >= 2) {
+                const _diff = _nums[1] - _nums[0];
+                const _chng = ((_diff / _nums[0]) * 100).toFixed(2);
+                _pResult = `📊 From ${_nums[0]} to ${_nums[1]}: *${_chng > 0 ? "+" : ""}${_chng}%* ${_chng >= 0 ? "increase 📈" : "decrease 📉"}`;
+              }
+            } else if (_fullArg.includes("of")) {
+              const _nums = _fullArg.match(/[\d.]+/g)?.map(Number);
+              if (_nums?.length >= 2) _pResult = `📊 ${_nums[0]}% of ${_nums[1]} = *${(_nums[0] / 100 * _nums[1]).toFixed(2)}*`;
+            } else if (_fullArg.includes("out of")) {
+              const _nums = _fullArg.match(/[\d.]+/g)?.map(Number);
+              if (_nums?.length >= 2) _pResult = `📊 ${_nums[0]} out of ${_nums[1]} = *${(_nums[0] / _nums[1] * 100).toFixed(2)}%*`;
+            } else {
+              const _nums = _fullArg.match(/[\d.]+/g)?.map(Number);
+              if (_nums?.length >= 2) _pResult = `📊 ${_nums[0]}% of ${_nums[1]} = *${(_nums[0] / 100 * _nums[1]).toFixed(2)}*`;
+            }
+            if (!_pResult) throw new Error("Could not parse input");
+            await sock.sendMessage(from, { text: `🔢 *Percentage Calculator*\n\n${_pResult}` }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `❌ Invalid input. Try: \`${_pfx}percentage 25 of 200\`` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .numberfact — interesting number fact ────────────────────────────
+        if (_cmd === "numberfact" || _cmd === "numfact") {
+          const _numRaw = (_args || "").trim();
+          const _num    = parseInt(_numRaw, 10);
+          if (_numRaw && isNaN(_num)) {
+            await sock.sendMessage(from, { text: `❌ Please provide a valid number. Example: \`${_pfx}numberfact 42\`` }, { quoted: msg });
+            return;
+          }
+          const _numTarget = _numRaw ? _num : Math.floor(Math.random() * 1000);
+          try {
+            const _nfRes = await axios.get(`http://numbersapi.com/${_numTarget}`, { timeout: 8000 });
+            await sock.sendMessage(from, { text: `🔢 *Number Fact: ${_numTarget}*\n\n${_nfRes.data}` }, { quoted: msg });
+          } catch {
+            await sock.sendMessage(from, { text: `🔢 *Number Fact: ${_numTarget}*\n\n${_numTarget} is ${_numTarget % 2 === 0 ? "an even" : "an odd"} number with ${_numTarget.toString().length} digit(s).` }, { quoted: msg });
+          }
+          return;
+        }
+
+        // ── .base64 — base64 encode / decode ─────────────────────────────────
+        if (_cmd === "base64" || _cmd === "b64") {
+          if (!_args.trim()) {
+            await sock.sendMessage(from, {
+              text: `🔑 *Base64 Tool*\n\nUsage:\n• \`${_pfx}base64 encode Hello World\`\n• \`${_pfx}base64 decode SGVsbG8gV29ybGQ=\``
+            }, { quoted: msg });
+            return;
+          }
+          const _b64Parts = _args.trim().split(/\s+/);
+          const _b64Sub   = _b64Parts[0].toLowerCase();
+          const _b64Val   = _b64Parts.slice(1).join(" ");
+          if (_b64Sub === "encode" && _b64Val) {
+            const _encoded = Buffer.from(_b64Val).toString("base64");
+            await sock.sendMessage(from, { text: `🔑 *Base64 Encode*\n\n*Input:* ${_b64Val}\n*Output:* \`${_encoded}\`` }, { quoted: msg });
+          } else if (_b64Sub === "decode" && _b64Val) {
+            try {
+              const _decoded = Buffer.from(_b64Val, "base64").toString("utf8");
+              await sock.sendMessage(from, { text: `🔑 *Base64 Decode*\n\n*Input:* \`${_b64Val}\`\n*Output:* ${_decoded}` }, { quoted: msg });
+            } catch {
+              await sock.sendMessage(from, { text: `❌ Invalid base64 string.` }, { quoted: msg });
+            }
+          } else {
+            const _b64Auto = /^[A-Za-z0-9+/]+=*$/.test(_args.trim()) && _args.trim().length % 4 === 0;
+            if (_b64Auto) {
+              try {
+                const _decoded = Buffer.from(_args.trim(), "base64").toString("utf8");
+                await sock.sendMessage(from, { text: `🔑 *Base64 → Auto-decoded*\n\n*Input:* \`${_args.trim()}\`\n*Output:* ${_decoded}` }, { quoted: msg });
+              } catch { await sock.sendMessage(from, { text: `🔑 Base64 Encode:\n\`${Buffer.from(_args.trim()).toString("base64")}\`` }, { quoted: msg }); }
+            } else {
+              const _enc = Buffer.from(_args.trim()).toString("base64");
+              await sock.sendMessage(from, { text: `🔑 *Base64 Encode*\n\n*Input:* ${_args.trim()}\n*Output:* \`${_enc}\`` }, { quoted: msg });
+            }
+          }
+          return;
+        }
+
         // ── .toimg — convert a sticker back to an image ────────────────────
         if (_cmd === "toimg" || _cmd === "sticker2img" || _cmd === "stickertoimg") {
           const quotedMsg = msg.quoted?.message || null;
@@ -6057,6 +6409,15 @@ async function startnexus() {
               `┃ ✦ ${_pfx}inspire\n` +
               `┃ ✦ ${_pfx}anime\n` +
               `┃ ✦ ${_pfx}random-anime\n` +
+              `┃ 🎯 ${_pfx}truth — random truth question\n` +
+              `┃ 🔥 ${_pfx}dare — random dare challenge\n` +
+              `┃ 🤔 ${_pfx}wyr — would you rather\n` +
+              `┃ 💘 ${_pfx}ship Name1 and Name2 — love meter\n` +
+              `┃ 💐 ${_pfx}compliment — give a compliment\n` +
+              `┃ 🔥 ${_pfx}roast — playful roast\n` +
+              `┃ 🐱 ${_pfx}catfact — random cat fact\n` +
+              `┃ 🐶 ${_pfx}dogfact — random dog fact\n` +
+              `┃ 🔢 ${_pfx}numberfact <number> — fun number fact\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 ✍️ *TEXT LAB* 〕━━━⬣\n` +
               `┃ ⌘ ${_pfx}aesthetic\n` +
@@ -6124,6 +6485,10 @@ async function startnexus() {
               `┃ 🎨 ${_pfx}color #HEXCODE — color inspector\n` +
               `┃ 🔗 ${_pfx}short <url> — URL shortener\n` +
               `┃ 📇 ${_pfx}vcard Name | Number — contact card\n` +
+              `┃ 📖 ${_pfx}urban <word> — Urban Dictionary\n` +
+              `┃ 💱 ${_pfx}currency 100 USD KES — converter\n` +
+              `┃ 🔢 ${_pfx}percentage 25 of 200 — % calc\n` +
+              `┃ 🔑 ${_pfx}base64 encode/decode <text>\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 📸 *STATUS TOOLS* 〕━━━⬣\n` +
               `┃ 💾 ${_pfx}s — save quoted status/media to DM\n` +
@@ -6191,22 +6556,25 @@ async function startnexus() {
               `┃ ⧗ ${_pfx}poll\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 🤖 *AUTO MODERATION* 〕━━━⬣\n` +
-              `┃ ⛔ ${_pfx}antilink\n` +
-              `┃ ⛔ ${_pfx}antispam\n` +
-              `┃ ⛔ ${_pfx}antiflood\n` +
-              `┃ ⛔ ${_pfx}antilongtext\n` +
-              `┃ ⛔ ${_pfx}settextlimit\n` +
-              `┃ ⛔ ${_pfx}antimention\n` +
-              `┃ ⛔ ${_pfx}antitag\n` +
-              `┃ ⛔ ${_pfx}welcome — toggle welcome messages (on/off)\n` +
-              `┃ ⛔ ${_pfx}goodbye — toggle goodbye messages (on/off)\n` +
-              `┃ ⛔ ${_pfx}antisticker\n` +
-              `┃ ⛔ ${_pfx}antidelete\n` +
-              `┃ ⛔ ${_pfx}anticall\n` +
-              `┃ ⛔ ${_pfx}alwaysonline\n` +
-              `┃ 👻 ${_pfx}ghost — hide blue ticks (aliases: ${_pfx}ghostmode, ${_pfx}hidebluetick)\n` +
-              `┃ 🕵️ ${_pfx}ghoststatus — stealth status view (aliases: ${_pfx}stealthstatus)\n` +
-              `┃ 🚫 ${_pfx}antistatusmention — aliases: ${_pfx}gsm, ${_pfx}asm\n` +
+              `┃ ⛔ ${_pfx}antilink on/off\n` +
+              `┃ ⛔ ${_pfx}antispam on/off\n` +
+              `┃ ⛔ ${_pfx}antiflood on/off\n` +
+              `┃ ⛔ ${_pfx}antilongtext on/off\n` +
+              `┃ ⛔ ${_pfx}settextlimit <n>\n` +
+              `┃ ⛔ ${_pfx}antimention on/off\n` +
+              `┃ ⛔ ${_pfx}antitag on/off\n` +
+              `┃ ⛔ ${_pfx}welcome on/off — welcome messages\n` +
+              `┃ ⛔ ${_pfx}goodbye on/off — goodbye messages\n` +
+              `┃ ⛔ ${_pfx}antisticker on/off\n` +
+              `┃ ⛔ ${_pfx}antidelete on/off\n` +
+              `┃ ⛔ ${_pfx}anticall on/off\n` +
+              `┃ ⛔ ${_pfx}alwaysonline on/off\n` +
+              `┃ 👻 ${_pfx}ghost on/off — hide blue ticks\n` +
+              `┃ 🕵️ ${_pfx}ghoststatus on/off — stealth status view\n` +
+              `┃ 🚫 ${_pfx}antimentiongroup on/off — prevent group tagging in status\n` +
+              `┃ 🚫 ${_pfx}amg on/off — alias of ${_pfx}antimentiongroup\n` +
+              `┃ 🚫 ${_pfx}antistatusmention warn/delete/kick/off — advanced mode\n` +
+              `┃ 🚫 ${_pfx}gsm / ${_pfx}asm — aliases of ${_pfx}antistatusmention\n` +
               `╰━━━━━━━━━━━━━━━━━━⬣\n\n` +
               `╭━━━〔 ⚙ *BOT SETTINGS* 〕━━━⬣\n` +
               `┃ ⚙ ${_pfx}botsettings\n` +
