@@ -1290,10 +1290,13 @@ async function startnexus() {
         console.warn(`[PRESENCE] ${type} → ${toJid?.split("@")[0]} failed: ${err.message}`)
       );
 
-    // Send the indicator once — no repeating interval
+    // Send the indicator immediately and keep it alive with a repeating interval.
+    // WhatsApp auto-clears composing/recording after ~25s if not refreshed — the
+    // interval re-sends every 8 s so the indicator stays visible for long commands.
     let presenceInterval = null;
     if (shouldRecord || shouldType) {
       _sendPresence(presenceType, from);
+      presenceInterval = setInterval(() => _sendPresence(presenceType, from), 8000);
     }
 
     broadcast.addRecipient(senderJid);
@@ -6881,6 +6884,11 @@ async function startnexus() {
     const isLive = type === "notify";
     const nowSec = Math.floor(Date.now() / 1000);
 
+    // Counter for staggering autolike reacts across a batch.
+    // Multiple statuses arriving at once would all react simultaneously, hitting
+    // WhatsApp rate-limits and causing some reactions to be silently dropped.
+    let _statusReactIdx = 0;
+
     for (const msg of messages) {
       if (!msg.message) continue;
 
@@ -6896,10 +6904,10 @@ async function startnexus() {
       if (from === "status@broadcast") {
         security.cacheStatus(msg.key.id, msg);
 
-        // ── Autoview + Autoreact — fire immediately, no pipeline overhead ──
-        // Runs here (not in processMessage) so it fires before the isRecent
-        // guard and before any async processing, making it as fast as possible.
-        if (!msg.key.fromMe) {
+        // ── Autoview + Autoreact — live messages only ────────────────────────
+        // Guard with isLive: "append" events are history-sync of OLD statuses.
+        // Reacting to them floods WhatsApp with bulk reacts → rate-limit → skips.
+        if (!msg.key.fromMe && isLive) {
           const _svPoster = msg.key.participant;
           if (_svPoster) {
             const _svGhost = settings.get("ghostStatus") === true || settings.get("ghostStatus") === "on";
@@ -6911,12 +6919,20 @@ async function startnexus() {
               }]).catch(() => {});
             }
             if (settings.get("autoLikeStatus") && !_svGhost) {
-              const _svMyJid = (sock.user?.id || "").replace(/:\d+@/, "@");
-              sock.sendMessage(
-                "status@broadcast",
-                { react: { text: "❤️", key: msg.key } },
-                { statusJidList: [_svPoster, _svMyJid].filter(Boolean) }
-              ).catch(() => {});
+              // Stagger reacts by 350 ms per status in the batch.
+              // Without this, every status in the batch fires at t=0 → rate-limit.
+              const _reactDelay = _statusReactIdx * 350;
+              _statusReactIdx++;
+              const _capturedKey    = { ...msg.key };
+              const _capturedPoster = _svPoster;
+              setTimeout(() => {
+                const _svMyJid = (sock.user?.id || "").replace(/:\d+@/, "@");
+                sock.sendMessage(
+                  "status@broadcast",
+                  { react: { text: "❤️", key: _capturedKey } },
+                  { statusJidList: [_capturedPoster, _svMyJid].filter(Boolean) }
+                ).catch(() => {});
+              }, _reactDelay);
             }
 
             // Status auto-save is command-only (.savestatus as a reply to a status)
