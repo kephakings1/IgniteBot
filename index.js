@@ -435,6 +435,26 @@ app.get("/api/session", (req, res) => {
   res.json({ sessionId: sid, connected: botStatus === "connected", phone: botPhoneNumber });
 });
 
+// ── Manual reconnect trigger ──────────────────────────────────────────────────
+// POST /api/reconnect — forcefully (re)connects the bot without needing to
+// re-submit the session.  Useful when the bot is stuck in "disconnected" state
+// but the creds.json on disk is still valid.
+app.post("/api/reconnect", (req, res) => {
+  if (botStatus === "connected") {
+    return res.json({ ok: false, message: "Bot is already connected." });
+  }
+  const credsPath = require("path").join(AUTH_FOLDER, "creds.json");
+  if (!require("fs").existsSync(credsPath)) {
+    return res.status(400).json({ ok: false, message: "No session found. Submit a session first via the Setup tab." });
+  }
+  waitingForSession = false;
+  reconnectAttempts  = 0;
+  if (sockRef) { try { sockRef.ws.close(); } catch {} }
+  console.log("🔄 Manual reconnect triggered via /api/reconnect");
+  setTimeout(startnexus, 300);
+  res.json({ ok: true, message: "Reconnect scheduled. Check logs for progress." });
+});
+
 // ── Accept any session ID/string and connect ─────────────────────────────────
 // Accepts: NEXUS-MD, bare URL, raw JSON string, base64 creds, object-form creds
 app.post("/session", async (req, res) => {
@@ -474,11 +494,14 @@ app.post("/session", async (req, res) => {
     waitingForSession = false;
     reconnectAttempts = 0;
     aliveSent = false;   // allow a fresh alive message after re-pairing
+    // Close any existing socket cleanly, then always start fresh.
+    // Never rely only on the close-event to trigger reconnect — the socket
+    // may already be dead/closed and the close event would never fire.
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
-    } else {
-      setTimeout(startnexus, 500);
     }
+    console.log("🔄 Session saved — scheduling startnexus() in 600 ms...");
+    setTimeout(startnexus, 600);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -513,9 +536,9 @@ app.post("/session/url", async (req, res) => {
     aliveSent = false;   // allow a fresh alive message after re-pairing
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
-    } else {
-      setTimeout(startnexus, 500);
     }
+    console.log("🔄 Session loaded from URL — scheduling startnexus() in 600 ms...");
+    setTimeout(startnexus, 600);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -953,8 +976,18 @@ async function startnexus() {
     }, 1000);                          // batch multiple back-to-back key updates (1 s for fast Heroku restarts)
   };
 
-  // Warn early when there are no credentials so the user knows what to do
-  const hasCreds = state.creds && state.creds.me;
+  // Warn early when there are no credentials so the user knows what to do.
+  // NOTE: state.creds.me is only populated AFTER the first successful WhatsApp
+  // handshake — fresh sessions from pairing code generators may have it null.
+  // Use the noise key (always present in any real Baileys creds) as primary check.
+  const hasCreds = !!(
+    state.creds?.me ||
+    state.creds?.noiseKey ||
+    state.creds?.signedIdentityKey ||
+    state.creds?.pairingEphemeralKeyPair ||
+    (fs.existsSync(credsPath) && fs.statSync(credsPath).size > 10)
+  );
+  console.log(`[startnexus] hasCreds=${hasCreds} | me=${state.creds?.me?.id || "null"} | noiseKey=${!!state.creds?.noiseKey}`);
   if (!hasCreds) {
     waitingForSession = true;
     let host;
@@ -980,21 +1013,27 @@ async function startnexus() {
   }
 
   waitingForSession = false;
-  // Fetch the current WA version. Fall back to a known-good version so the
-  // bot can still connect even if the network request to WA's API fails.
+  // Fetch the current WA version with a 5-second timeout so a stalled
+  // network request never freezes the entire bot startup indefinitely.
+  console.log("[startnexus] Fetching WA version...");
   let version;
   try {
-    const vRes = await fetchLatestBaileysVersion();
+    const vRes = await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout after 5s")), 5000)),
+    ]);
     version = vRes.version;
-  } catch {
+    console.log("[startnexus] WA version:", version);
+  } catch (vErr) {
     version = [2, 3000, 1023597560];
-    console.warn("[WA] Could not fetch latest version — using built-in fallback:", version);
+    console.warn("[WA] Could not fetch latest version — using built-in fallback:", version, `(${vErr.message})`);
   }
 
   // Completely silent no-op logger — prevents Baileys printing internal signal state
   const noop = () => {};
   const logger = { trace: noop, debug: noop, info: noop, warn: noop, error: noop, fatal: noop, child() { return this; }, level: "silent" };
 
+  console.log("[startnexus] Creating WA socket...");
   const plat = platform.get();
   const sock = makeWASocket({
     version,

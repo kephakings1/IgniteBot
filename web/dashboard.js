@@ -344,6 +344,7 @@ tr:last-child td{border-bottom:none}
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:8px">
       <button class="btn btn-green" onclick="applySetup()">✅ Apply Setup</button>
       <button class="btn btn-gray" onclick="clearSetup()">🗑 Clear</button>
+      <button class="btn btn-blue" onclick="forceReconnect()" id="reconnectBtn">🔄 Force Reconnect</button>
     </div>
 
     <div class="setup-result" id="setupResult"></div>
@@ -694,6 +695,27 @@ async function fetchHerokuApps() {
   } catch(e) {
     listEl.textContent = '❌ Network error: ' + e.message;
     listEl.style.color='#f85149';
+  }
+}
+
+async function forceReconnect() {
+  const btn = document.getElementById('reconnectBtn');
+  const resultEl = document.getElementById('setupResult');
+  if (btn) btn.disabled = true;
+  resultEl.innerHTML = '<span style="color:#8b949e">⏳ Sending reconnect signal...</span>';
+  try {
+    const r = await fetch('/api/reconnect', { method: 'POST', headers: {'Content-Type':'application/json'} });
+    const d = await r.json();
+    if (d.ok) {
+      resultEl.innerHTML = '<span style="color:#3fb950">✅ ' + d.message + ' — watch the console logs.</span>';
+      toast('🔄 Reconnecting...', '#1f6feb');
+    } else {
+      resultEl.innerHTML = '<span style="color:#d29922">⚠️ ' + d.message + '</span>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<span style="color:#f85149">❌ Network error: ' + e.message + '</span>';
+  } finally {
+    if (btn) setTimeout(() => { btn.disabled = false; }, 3000);
   }
 }
 
