@@ -49,6 +49,7 @@ let reconnectAttempts = 0;
 let waitingForSession = false;       // true when no creds exist — don't auto-reconnect
 let isShuttingDown = false;          // set on SIGTERM to prevent reconnect loops during shutdown
 let isConnecting = false;            // guard — prevents two startnexus() calls running in parallel
+let aliveSent = false;               // guard — send "Master, am alive!" only on first connect
 
 const SESSION_PREFIX = "NEXUS-MD:~";
 const NEXUS_RE = /^NEXUS-MD[^A-Za-z0-9+/=]*/;
@@ -384,6 +385,7 @@ app.post("/session", async (req, res) => {
 
     waitingForSession = false;
     reconnectAttempts = 0;
+    aliveSent = false;   // allow a fresh alive message after re-pairing
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
@@ -420,6 +422,7 @@ app.post("/session/url", async (req, res) => {
 
     waitingForSession = false;
     reconnectAttempts = 0;
+    aliveSent = false;   // allow a fresh alive message after re-pairing
     if (sockRef) {
       try { sockRef.ws.close(); } catch {}
     } else {
@@ -1085,20 +1088,24 @@ async function startnexus() {
       // to avoid large memory spikes (ffmpeg + media buffers) on startup.
 
       // ── Startup alive message → all super-admins ──────────────────────────
-      const { admins: adminNums } = require("./config");
-      if (adminNums && adminNums.length) {
-        const aliveMsg =
-          `╔══════════════════════╗\n` +
-          `║   🤖 *NEXUS-MD*        ║\n` +
-          `╚══════════════════════╝\n\n` +
-          `✅ *Master, am alive!*\n\n` +
-          `📞 *Phone:* +${botPhoneNumber}\n` +
-          `⚡ *Prefix:* ${prefix}\n` +
-          `🕐 *Started:* ${new Date().toLocaleString("en-GB", { timeZone: settings.get("timezone") || "Africa/Nairobi", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}\n\n` +
-          `_Type \`${prefix}menu\` to see all commands_`;
-        for (const num of adminNums) {
-          const ownerJid = `${num.replace(/\D/g, "")}@s.whatsapp.net`;
-          await sock.sendMessage(ownerJid, { text: aliveMsg }).catch(() => {});
+      // Only send once per process lifetime — not on every reconnect.
+      if (!aliveSent) {
+        aliveSent = true;
+        const { admins: adminNums } = require("./config");
+        if (adminNums && adminNums.length) {
+          const aliveMsg =
+            `╔══════════════════════╗\n` +
+            `║   🤖 *NEXUS-MD*        ║\n` +
+            `╚══════════════════════╝\n\n` +
+            `✅ *Master, am alive!*\n\n` +
+            `📞 *Phone:* +${botPhoneNumber}\n` +
+            `⚡ *Prefix:* ${prefix}\n` +
+            `🕐 *Started:* ${new Date().toLocaleString("en-GB", { timeZone: settings.get("timezone") || "Africa/Nairobi", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}\n\n` +
+            `_Type \`${prefix}menu\` to see all commands_`;
+          for (const num of adminNums) {
+            const ownerJid = `${num.replace(/\D/g, "")}@s.whatsapp.net`;
+            await sock.sendMessage(ownerJid, { text: aliveMsg }).catch(() => {});
+          }
         }
       }
 
