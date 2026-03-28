@@ -135,6 +135,7 @@ let alwaysOnlineInterval = null;
 let sessionPersistInterval = null;   // periodic full auth-folder → DB save
 let currentSessionId = null;
 let reconnectAttempts = 0;
+let consecutive408s   = 0;           // counts consecutive 408/timedOut failures — stops infinite loop
 let waitingForSession = false;       // true when no creds exist — don't auto-reconnect
 let isShuttingDown = false;          // set on SIGTERM to prevent reconnect loops during shutdown
 let isConnecting = false;            // guard — prevents two startnexus() calls running in parallel
@@ -978,18 +979,21 @@ async function startnexus() {
     }, 1000);                          // batch multiple back-to-back key updates (1 s for fast Heroku restarts)
   };
 
-  // Warn early when there are no credentials so the user knows what to do.
-  // NOTE: state.creds.me is only populated AFTER the first successful WhatsApp
-  // handshake — fresh sessions from pairing code generators may have it null.
-  // Use the noise key (always present in any real Baileys creds) as primary check.
+  // Detect a real user-provided session.
+  // IMPORTANT: Baileys auto-generates noiseKey/signedIdentityKey in-memory for every
+  // fresh socket — those keys alone do NOT indicate a real WhatsApp account session.
+  // The only reliable signals are:
+  //   1. state.creds.me    — non-null after a successful handshake (best signal)
+  //   2. state.creds.account — populated after a successful registration
+  //   3. creds.json exists on disk with size > 200 bytes — user has explicitly
+  //      provided a session (a real session file always contains keys + account data)
+  const credsDiskOk = fs.existsSync(credsPath) && fs.statSync(credsPath).size > 200;
   const hasCreds = !!(
     state.creds?.me ||
-    state.creds?.noiseKey ||
-    state.creds?.signedIdentityKey ||
-    state.creds?.pairingEphemeralKeyPair ||
-    (fs.existsSync(credsPath) && fs.statSync(credsPath).size > 10)
+    state.creds?.account ||
+    credsDiskOk
   );
-  console.log(`[startnexus] hasCreds=${hasCreds} | me=${state.creds?.me?.id || "null"} | noiseKey=${!!state.creds?.noiseKey}`);
+  console.log(`[startnexus] hasCreds=${hasCreds} | me=${state.creds?.me?.id || "null"} | noiseKey=${!!state.creds?.noiseKey} | credsDisk=${credsDiskOk}`);
   if (!hasCreds) {
     waitingForSession = true;
     let host;
@@ -1182,6 +1186,32 @@ async function startnexus() {
       } else if (waitingForSession) {
         // No session yet — don't loop. Wait for the user to POST a session.
         console.log(`⏳ No session configured. Visit /dashboard?tab=setup to get started.`);
+      } else if (statusCode === 408 || statusCode === 515 || (errMsg && errMsg.toLowerCase().includes("qr"))) {
+        // 408 = timedOut / QR scan timeout — happens when stored session has no valid account
+        // identity (me=null). Blindly reconnecting with the same bad creds just loops forever.
+        consecutive408s++;
+        if (consecutive408s >= 5) {
+          consecutive408s = 0;
+          reconnectAttempts = 0;
+          console.log("━".repeat(60));
+          console.log("🚫 SESSION INVALID — bot got code 408 five times in a row.");
+          console.log("   The stored session has no valid WhatsApp account (me=null).");
+          console.log("   ➡  Get a fresh session ID from: " + PAIR_SITE_URL);
+          console.log("   ➡  Paste it in the dashboard → Setup tab → SESSION ID field.");
+          console.log("   Pausing reconnection for 5 minutes to avoid WhatsApp rate-limits.");
+          console.log("━".repeat(60));
+          // Pause for 5 minutes then try once more in case the user pasted a new session
+          setTimeout(() => {
+            consecutive408s = 0;
+            reconnectAttempts = 0;
+            startnexus();
+          }, 5 * 60 * 1000);
+        } else {
+          const delay = Math.min(6000 * consecutive408s, 30000); // 6s → 12s → 18s → 24s
+          console.log(`🔌 Connection closed (code: 408 — QR timeout, attempt ${consecutive408s}/5). Retrying in ${Math.round(delay / 1000)}s...`);
+          console.log(`   ⚠️  If this repeats, your session is expired. Get a new one at: ${PAIR_SITE_URL}`);
+          setTimeout(startnexus, delay);
+        }
       } else {
         const delay = reconnectDelay();
         console.log(`🔌 Connection closed (code: ${statusCode}). Reconnecting in ${Math.round(delay / 1000)}s (attempt ${reconnectAttempts})...`);
@@ -1191,6 +1221,7 @@ async function startnexus() {
 
     if (connection === "open") {
       reconnectAttempts = 0;
+      consecutive408s   = 0;           // successful open — clear bad-session counter
       isConnecting = false;  // fully connected — allow future reconnect calls
       botStatus = "connected";
       sockRef = sock;
@@ -1776,9 +1807,22 @@ async function startnexus() {
       })();
     }
 
-    // ── Commands — processed immediately after typing indicator ───────────────
-    if (body.startsWith(settings.get("prefix") || ".") || msg.key.fromMe === false) {
-      console.log(`[CMD→] from=${msg.sender?.split("@")[0]} body="${body.slice(0, 60)}" fromMe=${msg.key.fromMe}`);
+    // ── Ultra-fast command receipt log — only fires for actual commands ────────
+    const _pfxFast = settings.get("prefix") || ".";
+    if (body.startsWith(_pfxFast)) {
+      console.log(`[CMD] from=${phone} cmd="${body.slice(0, 60)}" fromMe=${msg.key.fromMe}`);
+    }
+
+    // ── .ping — instant latency check, bypasses ALL other processing ──────────
+    // Responds in < 50 ms. Useful to confirm the bot is receiving messages.
+    if (body.toLowerCase() === `${_pfxFast}ping` || body.toLowerCase() === `${_pfxFast}alive`) {
+      const _t1 = Date.now();
+      const _ts = Number(msg.messageTimestamp || 0) * 1000;
+      const _latency = _t1 - _ts;
+      await sock.sendMessage(from, {
+        text: `🏓 *Pong!*\n⚡ Response time: *${_latency}ms*\n✅ Bot is *online* and receiving commands.`,
+      }, { quoted: msg });
+      return;
     }
 
     // ── Private mode guard — only owner/admins may use commands ──────────────
