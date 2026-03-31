@@ -1593,37 +1593,6 @@ async function startnexus() {
       }
     }
 
-    // ── Per-group antispam enforcement — 5 msgs / 5 sec threshold ─────────
-    if (msg.isGroup && !msg.key.fromMe && body) {
-      const _asEnabled = (db.read(`grp_antispam`, {}))[from];
-      if (_asEnabled && !admin.isSuperAdmin(senderJid)) {
-        try {
-          const _asGroupMeta = await _getGroupMeta(sock, from);
-          const _asParts = _asGroupMeta?.participants || [];
-          const _asSenderPart = _asParts.find(p => p.id.split(":")[0] + "@s.whatsapp.net" === senderJid || p.id === senderJid);
-          const _asSenderAdmin = _asSenderPart?.admin === "admin" || _asSenderPart?.admin === "superadmin";
-          if (!_asSenderAdmin) {
-            const _asTracker = db.read(`grp_as_tracker`, {});
-            if (!_asTracker[from]) _asTracker[from] = {};
-            if (!_asTracker[from][senderJid]) _asTracker[from][senderJid] = { count: 0, first: Date.now() };
-            const _asNow  = Date.now();
-            const _asUser = _asTracker[from][senderJid];
-            if (_asNow - _asUser.first > 5000) { _asUser.count = 1; _asUser.first = _asNow; }
-            else { _asUser.count++; }
-            db.write(`grp_as_tracker`, _asTracker);
-            if (_asUser.count >= 5) {
-              _asUser.count = 0; db.write(`grp_as_tracker`, _asTracker);
-              await sock.sendMessage(from, { delete: msg.key }).catch(() => {});
-              await sock.sendMessage(from, {
-                text: `🛡️ @${phone} *Spam detected!* Slow down — you're sending too many messages too fast.`,
-                mentions: [senderJid],
-              }).catch(() => {});
-            }
-          }
-        } catch (_asErr) { console.error("[antispam-enforce]", _asErr.message); }
-      }
-    }
-
     // ── Per-group antilink enforcement (per-group toggle via .antilink) ────
     if (msg.isGroup && !msg.key.fromMe && body) {
       const _galMap = db.read(`grp_antilink`, {});
@@ -1866,29 +1835,6 @@ async function startnexus() {
           fancyReplyHandlers.delete(fancyQuotedId);
         } catch {}
       }
-    }
-
-    // ── Premium: auto OCR for image messages sent to bot ─────────────────────
-    // Triggers in DMs when an image is sent (auto-detect text in images).
-    // Does NOT trigger when caption is ".ocr" — that is handled by commands.handle.
-    const _ocrInner = _inner?.imageMessage;
-    const _ocrCaption = (_ocrInner?.caption || "").trim().toLowerCase();
-    const _ocrPrefix = settings.get("prefix") || ".";
-    const _ocrIsCmd = _ocrCaption.startsWith(_ocrPrefix);
-    if (!msg.key.fromMe && _ocrInner && !_ocrIsCmd && !from.endsWith("@g.us")) {
-      (async () => {
-        try {
-          const ocrBuf = Buffer.from(await downloadMediaMessage(msg, "buffer", {}));
-          const ocrText = await premium.extractTextFromImage(ocrBuf);
-          if (ocrText && ocrText.trim() && ocrText !== "No text found") {
-            await sock.sendMessage(from, {
-              text: `📄 *Extracted Text:*\n${"─".repeat(24)}\n\n${ocrText.trim()}`,
-            }, { quoted: msg });
-          }
-        } catch (e) {
-          // silent
-        }
-      })();
     }
 
     // ── Ultra-fast command receipt log — only fires for actual commands ────────
