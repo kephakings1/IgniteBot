@@ -7474,7 +7474,16 @@ async function startnexus() {
     }
     // ── End built-in interceptors ─────────────────────────────────────────────
 
-    await commands.handle(sock, msg).catch(err => {
+    // Ensure the obfuscated commands handler recognises the bot owner.
+    // commands.handle only sees msg.key.fromMe for owner detection.
+    // When the owner sends from their own number (ADMIN_NUMBERS), fromMe is
+    // false because it's not the bot's own WhatsApp account — so we patch a
+    // shallow copy of msg so the handler treats them as the bot owner.
+    const _msgForCmds = (!msg.key.fromMe && admin.isSuperAdmin(senderJid))
+      ? { ...msg, key: { ...msg.key, fromMe: true } }
+      : msg;
+
+    await commands.handle(sock, _msgForCmds).catch(err => {
       console.error(`[CMD✗] from=${msg.sender?.split("@")[0]} body="${body.slice(0,40)}" err=${err.message}`);
     });
 
